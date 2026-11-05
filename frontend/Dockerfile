@@ -17,7 +17,7 @@ ENV NODE_ENV=production
 RUN npm run build
 
 # ---------- Stage 3: production runtime (nginx) ----------
-FROM nginx:1.27-alpine AS runtime
+FROM nginx:1.31-alpine AS runtime
 
 ENV PORT=8080
 
