@@ -3,6 +3,7 @@
 
 Caches frames in-process for the lifetime of a request; cheap for this scale.
 """
+
 from __future__ import annotations
 
 import pandas as pd
@@ -62,26 +63,44 @@ def supplier_product_frame(session: Session) -> pd.DataFrame:
 
 def product_dict(session: Session) -> dict[str, dict]:
     rows = session.execute(select(orm.Product)).scalars().all()
-    return {p.product_id: {
-        "product_id": p.product_id, "name": p.name, "category": p.category,
-        "unit_cost": p.unit_cost, "unit_price": p.unit_price, "shelf_life_days": p.shelf_life_days,
-    } for p in rows}
+    return {
+        p.product_id: {
+            "product_id": p.product_id,
+            "name": p.name,
+            "category": p.category,
+            "unit_cost": p.unit_cost,
+            "unit_price": p.unit_price,
+            "shelf_life_days": p.shelf_life_days,
+        }
+        for p in rows
+    }
 
 
 def store_dict(session: Session) -> dict[str, dict]:
     rows = session.execute(select(orm.Store)).scalars().all()
-    return {s.store_id: {
-        "store_id": s.store_id, "name": s.name, "region": s.region,
-        "city": s.city, "size_sqft": s.size_sqft,
-    } for s in rows}
+    return {
+        s.store_id: {
+            "store_id": s.store_id,
+            "name": s.name,
+            "region": s.region,
+            "city": s.city,
+            "size_sqft": s.size_sqft,
+        }
+        for s in rows
+    }
 
 
 def supplier_dict(session: Session) -> dict[str, dict]:
     rows = session.execute(select(orm.Supplier)).scalars().all()
-    return {s.supplier_id: {
-        "supplier_id": s.supplier_id, "name": s.name, "region": s.region,
-        "nominal_lead_time_days": s.nominal_lead_time_days,
-        "capacity_units_per_day": s.capacity_units_per_day,
-        "min_order_qty": s.min_order_qty,
-        "reliability_hint": s.reliability_hint,
-    } for s in rows}
+    return {
+        s.supplier_id: {
+            "supplier_id": s.supplier_id,
+            "name": s.name,
+            "region": s.region,
+            "nominal_lead_time_days": s.nominal_lead_time_days,
+            "capacity_units_per_day": s.capacity_units_per_day,
+            "min_order_qty": s.min_order_qty,
+            "reliability_hint": s.reliability_hint,
+        }
+        for s in rows
+    }

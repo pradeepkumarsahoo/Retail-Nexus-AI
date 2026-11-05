@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Event bus — publish into outbox, dispatch once, idempotent on replay."""
+
 from __future__ import annotations
 
 

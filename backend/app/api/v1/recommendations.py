@@ -1,7 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 from __future__ import annotations
 
-from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,7 +32,11 @@ def list_recommendations(
         stmt = stmt.where(orm.Recommendation.priority == priority)
     if exception_id:
         stmt = stmt.where(orm.Recommendation.exception_id == exception_id)
-    rows = session.execute(stmt.order_by(orm.Recommendation.created_at.desc()).offset(offset).limit(limit)).scalars().all()
+    rows = (
+        session.execute(stmt.order_by(orm.Recommendation.created_at.desc()).offset(offset).limit(limit))
+        .scalars()
+        .all()
+    )
     return {"items": [RecommendationOut.model_validate(r).model_dump() for r in rows]}
 
 
@@ -46,23 +49,38 @@ def get_recommendation(
     row = session.get(orm.Recommendation, recommendation_id)
     if not row:
         raise HTTPException(status_code=404, detail="Recommendation not found")
-    history = session.execute(
-        select(orm.ApprovalEvent).where(orm.ApprovalEvent.recommendation_id == recommendation_id)
-        .order_by(orm.ApprovalEvent.created_at.asc())
-    ).scalars().all()
+    history = (
+        session.execute(
+            select(orm.ApprovalEvent)
+            .where(orm.ApprovalEvent.recommendation_id == recommendation_id)
+            .order_by(orm.ApprovalEvent.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
     return {
         "recommendation": RecommendationOut.model_validate(row).model_dump(),
-        "history": [ApprovalHistoryItem(
-            user=h.user, role=h.role, decision=h.decision, comment=h.comment, created_at=h.created_at
-        ).model_dump() for h in history],
+        "history": [
+            ApprovalHistoryItem(
+                user=h.user, role=h.role, decision=h.decision, comment=h.comment, created_at=h.created_at
+            ).model_dump()
+            for h in history
+        ],
     }
 
 
-def _record(session: Session, rec: orm.Recommendation, user: User, decision: str, comment: str | None) -> None:
-    session.add(orm.ApprovalEvent(
-        recommendation_id=rec.recommendation_id, user=user.username, role=user.role.value,
-        decision=decision, comment=comment,
-    ))
+def _record(
+    session: Session, rec: orm.Recommendation, user: User, decision: str, comment: str | None
+) -> None:
+    session.add(
+        orm.ApprovalEvent(
+            recommendation_id=rec.recommendation_id,
+            user=user.username,
+            role=user.role.value,
+            decision=decision,
+            comment=comment,
+        )
+    )
 
 
 @router.post("/{recommendation_id}/approve")
@@ -78,10 +96,16 @@ def approve(
     if row.status not in ("PENDING_APPROVAL", "EVIDENCE_REQUESTED"):
         raise HTTPException(status_code=409, detail=f"Cannot approve from status {row.status}")
     if not can_approve(user, row.risk_tier):
-        raise HTTPException(status_code=403, detail=f"Role {user.role} cannot approve risk tier {row.risk_tier}")
+        raise HTTPException(
+            status_code=403, detail=f"Role {user.role} cannot approve risk tier {row.risk_tier}"
+        )
     row.status = "APPROVED"
     _record(session, row, user, "APPROVE", body.comment)
-    publish(session, "RecommendationApproved", {"recommendation_id": row.recommendation_id, "approver": user.username})
+    publish(
+        session,
+        "RecommendationApproved",
+        {"recommendation_id": row.recommendation_id, "approver": user.username},
+    )
     # Execute via simulated adapter
     execute_action(session, row.recommendation_id, row.action_type, user.username)
     row.status = "EXECUTED"
@@ -103,7 +127,11 @@ def reject(
         raise HTTPException(status_code=409, detail=f"Cannot reject from status {row.status}")
     row.status = "REJECTED"
     _record(session, row, user, "REJECT", body.comment)
-    publish(session, "RecommendationRejected", {"recommendation_id": row.recommendation_id, "approver": user.username})
+    publish(
+        session,
+        "RecommendationRejected",
+        {"recommendation_id": row.recommendation_id, "approver": user.username},
+    )
     session.commit()
     return {"recommendation_id": recommendation_id, "status": row.status}
 

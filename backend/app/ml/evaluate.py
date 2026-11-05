@@ -10,22 +10,23 @@ Reads from the loaded DB (or the CSV dataset directly) and produces
 
 The report explicitly distinguishes measured vs synthetic vs illustrative.
 """
+
 from __future__ import annotations
 
 import json
 import random
-from datetime import date, datetime
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from app.core.config import get_settings
-from app.ml.anomaly.detector import evaluate_precision_recall, rolling_zscore
+from app.ml.anomaly.detector import evaluate_precision_recall
 from app.ml.features import product_store_daily
 from app.ml.forecasting.forecast import evaluate_series
-from app.ml.stockout.model import build_training_frame, evaluate_models as stockout_eval
+from app.ml.stockout.model import build_training_frame
+from app.ml.stockout.model import evaluate_models as stockout_eval
 from app.ml.supplier.risk import evaluate as supplier_eval
 
 
@@ -37,8 +38,16 @@ def _data_dir() -> Path:
 def _load() -> dict[str, pd.DataFrame]:
     d = _data_dir()
     frames = {}
-    for name in ("sales", "inventory", "purchase_orders", "products", "stores", "suppliers",
-                 "supplier_products", "labels_ground_truth"):
+    for name in (
+        "sales",
+        "inventory",
+        "purchase_orders",
+        "products",
+        "stores",
+        "suppliers",
+        "supplier_products",
+        "labels_ground_truth",
+    ):
         p = d / f"{name}.csv"
         if p.exists():
             frames[name] = pd.read_csv(p)
@@ -48,8 +57,12 @@ def _load() -> dict[str, pd.DataFrame]:
 def _sample_pairs(sales: pd.DataFrame, k: int = 20, seed: int = 42) -> list[tuple[str, str]]:
     rng = random.Random(seed)
     pairs = (
-        sales.groupby(["product_id", "store_id"]).size().reset_index().rename(columns={0: "n"})
-        .sort_values("n", ascending=False).head(100)
+        sales.groupby(["product_id", "store_id"])
+        .size()
+        .reset_index()
+        .rename(columns={0: "n"})
+        .sort_values("n", ascending=False)
+        .head(100)
     )
     chosen = rng.sample(list(pairs.itertuples(index=False)), k=min(k, len(pairs)))
     return [(r.product_id, r.store_id) for r in chosen]
@@ -133,7 +146,9 @@ def run_evaluation(out_path: Path | None = None) -> dict[str, Any]:
             if hist.empty:
                 continue
             m = evaluate_precision_recall(hist, lab["spike"], lab["decline"], z_threshold=2.5)
-            prec.append(m["precision"]); rec_.append(m["recall"]); f1_.append(m["f1"])
+            prec.append(m["precision"])
+            rec_.append(m["recall"])
+            f1_.append(m["f1"])
         report["anomaly_detection"] = {
             "detector": "rolling_zscore(window=28, threshold=2.5)",
             "evaluated_pairs": len(chosen),
@@ -143,7 +158,9 @@ def run_evaluation(out_path: Path | None = None) -> dict[str, Any]:
         }
 
     # Write
-    out = out_path or (Path(__file__).resolve().parent.parent.parent.parent / "ml" / "evaluation" / "report.json")
+    out = out_path or (
+        Path(__file__).resolve().parent.parent.parent.parent / "ml" / "evaluation" / "report.json"
+    )
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2))
     return report

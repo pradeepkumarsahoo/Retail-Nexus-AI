@@ -1,11 +1,12 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Shared Pydantic schemas for API I/O."""
+
 from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.enums import (
     ActionType,
@@ -116,7 +117,9 @@ class ApprovalHistoryItem(BaseModel):
 
 
 class SimulationScenario(BaseModel):
-    name: str = Field(..., description="BASELINE | EXPEDITE | TRANSFER | SWITCH_SUPPLIER | INCREASE_REPLENISHMENT")
+    name: str = Field(
+        ..., description="BASELINE | EXPEDITE | TRANSFER | SWITCH_SUPPLIER | INCREASE_REPLENISHMENT"
+    )
     params: dict[str, Any] = Field(default_factory=dict)
 
 

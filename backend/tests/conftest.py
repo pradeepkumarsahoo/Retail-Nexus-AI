@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Shared pytest fixtures."""
+
 from __future__ import annotations
 
 import os
@@ -19,12 +20,14 @@ os.environ.setdefault("LLM_PROVIDER", "mock")
 @pytest.fixture(scope="session")
 def init_test_db() -> None:
     from app.core.db import init_db
+
     init_db()
 
 
 @pytest.fixture
 def session(init_test_db):
     from app.core.db import SessionLocal
+
     s = SessionLocal()()
     try:
         yield s
@@ -36,7 +39,9 @@ def session(init_test_db):
 @pytest.fixture
 def client(init_test_db):
     from fastapi.testclient import TestClient
+
     from app.main import app
+
     with TestClient(app) as c:
         yield c
 

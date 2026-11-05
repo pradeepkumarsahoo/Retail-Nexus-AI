@@ -1,9 +1,11 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Typed state passed between agents (LangGraph-equivalent)."""
+
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+
 from pydantic import BaseModel, Field
 
 

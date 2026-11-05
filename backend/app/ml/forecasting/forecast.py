@@ -8,9 +8,9 @@ All models are stateless over the input series; features are built per-series so
 we can serve a forecast without a trained global model. The GBM is trained once per
 call using the past window — cheap on these series lengths and avoids drift.
 """
+
 from __future__ import annotations
 
-from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any
 
@@ -28,7 +28,13 @@ def seasonal_naive(hist: pd.DataFrame, horizon_days: int) -> list[tuple[date, fl
     s = _series(hist)
     if len(s) < 7:
         last = float(s.iloc[-1]) if len(s) else 0.0
-        return [(pd.Timestamp(s.index[-1] if len(s) else pd.Timestamp.today()).date() + timedelta(days=i+1), last) for i in range(horizon_days)]
+        return [
+            (
+                pd.Timestamp(s.index[-1] if len(s) else pd.Timestamp.today()).date() + timedelta(days=i + 1),
+                last,
+            )
+            for i in range(horizon_days)
+        ]
     out = []
     for i in range(horizon_days):
         d = s.index[-1] + pd.Timedelta(days=i + 1)
@@ -73,13 +79,11 @@ def gbm_forecast(hist: pd.DataFrame, horizon_days: int) -> list[tuple[date, floa
     frame = _build_lag_frame(s)
     X = frame.drop(columns=["y"]).to_numpy()
     y = frame["y"].to_numpy()
-    model = GradientBoostingRegressor(
-        n_estimators=120, max_depth=3, learning_rate=0.08, random_state=42
-    )
+    model = GradientBoostingRegressor(n_estimators=120, max_depth=3, learning_rate=0.08, random_state=42)
     model.fit(X, y)
     out: list[tuple[date, float]] = []
     extended = s.copy()
-    for i in range(horizon_days):
+    for _i in range(horizon_days):
         next_date = extended.index[-1] + pd.Timedelta(days=1)
         row = {
             "dow": next_date.dayofweek,
@@ -91,7 +95,9 @@ def gbm_forecast(hist: pd.DataFrame, horizon_days: int) -> list[tuple[date, floa
             "ma_7": float(extended.iloc[-7:].mean()),
             "ma_14": float(extended.iloc[-14:].mean()),
         }
-        X_next = np.array([[row[c] for c in ("dow", "doy", "lag_1", "lag_7", "lag_14", "lag_28", "ma_7", "ma_14")]])
+        X_next = np.array(
+            [[row[c] for c in ("dow", "doy", "lag_1", "lag_7", "lag_14", "lag_28", "ma_7", "ma_14")]]
+        )
         yhat = float(max(0.0, model.predict(X_next)[0]))
         out.append((next_date.date(), yhat))
         extended = pd.concat([extended, pd.Series([yhat], index=[next_date])])
@@ -99,6 +105,7 @@ def gbm_forecast(hist: pd.DataFrame, horizon_days: int) -> list[tuple[date, floa
 
 
 # --- evaluation metrics ----------------------------------------------------
+
 
 def mae(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.mean(np.abs(y_true - y_pred)))

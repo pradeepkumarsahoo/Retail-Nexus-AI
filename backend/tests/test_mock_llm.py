@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Mock LLM must be deterministic and must refuse prompt injection."""
+
 from __future__ import annotations
 
 import json

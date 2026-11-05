@@ -9,6 +9,7 @@ Scoring:
 
 Returns an interpretable risk score in [0, 1] with per-factor contributions.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -66,21 +67,26 @@ def score(pos: pd.DataFrame, supplier_id: str) -> SupplierRiskResult:
     risk = float(min(1.0, max(0.0, risk)))
     factors = [
         SupplierRiskFactor(
-            name=k, value=round(components[k], 4), weight=_WEIGHTS[k],
+            name=k,
+            value=round(components[k], 4),
+            weight=_WEIGHTS[k],
             contribution=round(_WEIGHTS[k] * components[k], 4),
         )
         for k in _WEIGHTS
     ]
     return SupplierRiskResult(
-        supplier_id=supplier_id, risk_score=round(risk, 4),
-        risk_category=_categorize(risk), factors=factors, stats=stats,
+        supplier_id=supplier_id,
+        risk_score=round(risk, 4),
+        risk_category=_categorize(risk),
+        factors=factors,
+        stats=stats,
     )
 
 
 def evaluate(pos: pd.DataFrame) -> dict[str, Any]:
     """Predict PO-level late outcomes with logistic regression; compare to naive baseline."""
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import average_precision_score, roc_auc_score, brier_score_loss
+    from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
     delivered = pos[pos["status"] == "DELIVERED"].copy()
     if delivered.empty:
@@ -96,12 +102,14 @@ def evaluate(pos: pd.DataFrame) -> dict[str, Any]:
         prior = delivered[delivered["order_date"] < po["order_date"]]
         prior_sup = prior[prior["supplier_id"] == po["supplier_id"]]
         otd_prior = (prior_sup["slip"] <= 1).mean() if len(prior_sup) else 0.9
-        rows.append({
-            "late": int(po["late"]),
-            "otd_prior": float(otd_prior),
-            "nominal_lead_time": int(po["lead_time"]),
-            "month": po["order_date"].month,
-        })
+        rows.append(
+            {
+                "late": int(po["late"]),
+                "otd_prior": float(otd_prior),
+                "nominal_lead_time": int(po["lead_time"]),
+                "month": po["order_date"].month,
+            }
+        )
     frame = pd.DataFrame(rows)
     if frame.empty or frame["late"].sum() == 0 or frame["late"].sum() == len(frame):
         return {"skipped": True, "reason": "no label variance"}
@@ -125,6 +133,7 @@ def evaluate(pos: pd.DataFrame) -> dict[str, Any]:
             "PR_AUC": round(float(average_precision_score(y_te, prob)), 4),
             "Brier": round(float(brier_score_loss(y_te, prob)), 4),
         }
+
     return {
         "features": ["otd_prior", "nominal_lead_time", "month"],
         "baseline_1_minus_otd": _m("baseline_1_minus_otd", baseline),

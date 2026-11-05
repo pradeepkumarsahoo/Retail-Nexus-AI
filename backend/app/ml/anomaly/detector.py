@@ -8,6 +8,7 @@ Combines two signals:
 Returns per-day labels and scores. Evaluation uses labelled spike/decline events
 from the synthetic generator.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -16,7 +17,6 @@ from typing import Any, Literal
 
 import numpy as np
 import pandas as pd
-
 
 AnomalyKind = Literal["NONE", "DEMAND_SPIKE", "DEMAND_DECLINE"]
 
@@ -52,7 +52,9 @@ def detect(hist: pd.DataFrame, z_threshold: float = 2.5) -> list[AnomalyPoint]:
         else:
             kind = "NONE"
         if kind != "NONE":
-            out.append(AnomalyPoint(date=pd.Timestamp(ts).date(), units=int(val), z_score=round(zs, 3), kind=kind))
+            out.append(
+                AnomalyPoint(date=pd.Timestamp(ts).date(), units=int(val), z_score=round(zs, 3), kind=kind)
+            )
     return out
 
 
@@ -62,12 +64,14 @@ def iforest_scores(hist: pd.DataFrame) -> pd.Series:
 
     if len(hist) < 60:
         return pd.Series(0.0, index=hist.index)
-    feats = pd.DataFrame({
-        "units": hist["units_sold"].astype(float),
-        "ma7": hist["units_sold"].rolling(7, min_periods=1).mean(),
-        "ma14": hist["units_sold"].rolling(14, min_periods=1).mean(),
-        "dow": pd.Series(hist.index).apply(lambda d: pd.Timestamp(d).weekday()).values,
-    })
+    feats = pd.DataFrame(
+        {
+            "units": hist["units_sold"].astype(float),
+            "ma7": hist["units_sold"].rolling(7, min_periods=1).mean(),
+            "ma14": hist["units_sold"].rolling(14, min_periods=1).mean(),
+            "dow": pd.Series(hist.index).apply(lambda d: pd.Timestamp(d).weekday()).values,
+        }
+    )
     model = IsolationForest(n_estimators=100, contamination=0.05, random_state=42)
     model.fit(feats.values)
     # negative score -> more anomalous
@@ -109,6 +113,8 @@ def evaluate_precision_recall(
         "precision": round(precision, 4),
         "recall": round(recall, 4),
         "f1": round(f1, 4),
-        "tp": tp, "fp": fp, "fn": fn,
+        "tp": tp,
+        "fp": fp,
+        "fn": fn,
         "z_threshold": z_threshold,
     }

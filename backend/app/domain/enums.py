@@ -1,6 +1,8 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Domain enumerations."""
+
 from __future__ import annotations
+
 from enum import Enum
 
 

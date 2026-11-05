@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+
 import pandas as pd
 
 from app.ml.features import product_store_daily
@@ -12,9 +13,16 @@ def _hist() -> pd.DataFrame:
     start = date(2026, 1, 1)
     rows = []
     for i in range(60):
-        rows.append({"sale_date": (start + timedelta(days=i)).isoformat(),
-                     "product_id": "P1", "store_id": "S1",
-                     "units_sold": 10, "revenue": 100.0, "promotion": False})
+        rows.append(
+            {
+                "sale_date": (start + timedelta(days=i)).isoformat(),
+                "product_id": "P1",
+                "store_id": "S1",
+                "units_sold": 10,
+                "revenue": 100.0,
+                "promotion": False,
+            }
+        )
     return product_store_daily(pd.DataFrame(rows), "P1", "S1")
 
 

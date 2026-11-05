@@ -10,15 +10,14 @@ Scenarios:
 
 All outputs are produced by explicit formulas and labelled with the assumptions used.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
-from app.ml.features import demand_features, inventory_snapshot_current
 from app.ml.forecasting.forecast import seasonal_naive
 
 
@@ -35,8 +34,11 @@ class ScenarioResult:
     constraints: list[str]
 
 
-def _project(forecast: list[float], starting_inventory: float, extra_deliveries_by_day: list[float] | None = None,
-             ) -> tuple[int, int, int]:
+def _project(
+    forecast: list[float],
+    starting_inventory: float,
+    extra_deliveries_by_day: list[float] | None = None,
+) -> tuple[int, int, int]:
     """Walk day-by-day: subtract demand, add deliveries, track stockout units."""
     inv = starting_inventory
     stockout = 0
@@ -73,7 +75,7 @@ def run(
         params = sc.get("params", {})
         assumptions = [
             f"Horizon = {horizon_days} days",
-            f"Daily forecast from seasonal-naive baseline over the recent sales window.",
+            "Daily forecast from seasonal-naive baseline over the recent sales window.",
             f"Unit price = ${unit_price:.2f}, unit cost = ${unit_cost:.2f}.",
             "Lost sales are assumed 1:1 for unmet demand units.",
         ]
@@ -131,17 +133,19 @@ def run(
         revenue_exposure = round(lost * unit_price, 2)
         net = round(-revenue_exposure - intervention_cost, 2)  # negative = loss
         # Benefit vs baseline is computed by the caller comparing to BASELINE result.
-        results.append(ScenarioResult(
-            scenario=name,
-            projected_inventory_units=projected,
-            expected_stockout_units=stockout,
-            expected_lost_sales_units=lost,
-            revenue_exposure_usd=revenue_exposure,
-            intervention_cost_usd=round(intervention_cost, 2),
-            net_benefit_usd=net,
-            assumptions=assumptions,
-            constraints=constraints,
-        ))
+        results.append(
+            ScenarioResult(
+                scenario=name,
+                projected_inventory_units=projected,
+                expected_stockout_units=stockout,
+                expected_lost_sales_units=lost,
+                revenue_exposure_usd=revenue_exposure,
+                intervention_cost_usd=round(intervention_cost, 2),
+                net_benefit_usd=net,
+                assumptions=assumptions,
+                constraints=constraints,
+            )
+        )
     # Compute net benefit vs baseline, in-place
     baseline = next((r for r in results if r.scenario == "BASELINE"), None)
     if baseline:

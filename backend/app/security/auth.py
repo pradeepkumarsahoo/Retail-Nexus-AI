@@ -1,8 +1,9 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """JWT auth, role-based authorization, password hashing."""
+
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Annotated
 
@@ -26,10 +27,10 @@ class Role(str, Enum):
 # Which roles can approve which recommendation risk levels.
 # Keyed role -> allowed max risk tier.
 APPROVAL_AUTHORITY: dict[Role, int] = {
-    Role.ANALYST: 1,       # Informational / Low
+    Role.ANALYST: 1,  # Informational / Low
     Role.STORE_MANAGER: 2,  # +Medium
-    Role.PROCUREMENT: 3,    # +High
-    Role.DIRECTOR: 4,       # +Critical
+    Role.PROCUREMENT: 3,  # +High
+    Role.DIRECTOR: 4,  # +Critical
     Role.ADMIN: 4,
 }
 
@@ -59,8 +60,16 @@ _PWD = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Dev-only in-memory user store. Swap for DB-backed when real auth is wired.
 _DEV_USERS: dict[str, dict] = {
     "demo-analyst": {"password": _PWD.hash("demo"), "role": Role.ANALYST, "display": "Demo Analyst"},
-    "demo-manager": {"password": _PWD.hash("demo"), "role": Role.STORE_MANAGER, "display": "Demo Store Manager"},
-    "demo-procurement": {"password": _PWD.hash("demo"), "role": Role.PROCUREMENT, "display": "Demo Procurement"},
+    "demo-manager": {
+        "password": _PWD.hash("demo"),
+        "role": Role.STORE_MANAGER,
+        "display": "Demo Store Manager",
+    },
+    "demo-procurement": {
+        "password": _PWD.hash("demo"),
+        "role": Role.PROCUREMENT,
+        "display": "Demo Procurement",
+    },
     "demo-director": {"password": _PWD.hash("demo"), "role": Role.DIRECTOR, "display": "Demo Director"},
     "demo-admin": {"password": _PWD.hash("demo"), "role": Role.ADMIN, "display": "Demo Admin"},
 }
@@ -82,7 +91,7 @@ def authenticate(username: str, password: str) -> User | None:
 
 def create_access_token(user: User) -> str:
     settings = get_settings()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
+    expire = datetime.now(UTC) + timedelta(minutes=settings.jwt_expire_minutes)
     payload = {"sub": user.username, "role": user.role.value, "exp": int(expire.timestamp())}
     return jwt.encode(payload, settings.app_secret_key, algorithm=settings.jwt_algorithm)
 
@@ -124,6 +133,7 @@ def require_roles(*roles: Role):
         if user.role not in roles and user.role != Role.ADMIN:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient privileges")
         return user
+
     return _dep
 
 

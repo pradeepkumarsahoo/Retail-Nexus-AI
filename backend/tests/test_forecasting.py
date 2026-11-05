@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+
+import numpy as np
 import pandas as pd
 
-from app.ml.forecasting.forecast import ema, evaluate_series, mae, rmse, seasonal_naive, smape, wape
 from app.ml.features import product_store_daily
-import numpy as np
+from app.ml.forecasting.forecast import ema, evaluate_series, mae, rmse, seasonal_naive, smape, wape
 
 
 def _hist(days: int = 90) -> pd.DataFrame:
@@ -14,9 +15,16 @@ def _hist(days: int = 90) -> pd.DataFrame:
     rows = []
     for i in range(days):
         units = 10 + (i % 7) + (3 if (i % 30) < 5 else 0)
-        rows.append({"sale_date": (start + timedelta(days=i)).isoformat(),
-                     "product_id": "P1", "store_id": "S1",
-                     "units_sold": units, "revenue": 10.0 * units, "promotion": False})
+        rows.append(
+            {
+                "sale_date": (start + timedelta(days=i)).isoformat(),
+                "product_id": "P1",
+                "store_id": "S1",
+                "units_sold": units,
+                "revenue": 10.0 * units,
+                "promotion": False,
+            }
+        )
     return product_store_daily(pd.DataFrame(rows), "P1", "S1")
 
 
@@ -48,5 +56,5 @@ def test_evaluate_series_returns_all_models():
     assert "seasonal_naive" in res
     assert "ema" in res
     assert "gbm" in res
-    for m, metrics in res.items():
+    for _m, metrics in res.items():
         assert {"MAE", "RMSE", "WAPE", "sMAPE"}.issubset(metrics.keys())

@@ -1,0 +1,17 @@
+-r requirements.txt
+
+# Test
+pytest==8.3.3
+pytest-asyncio==0.24.0
+pytest-cov==5.0.0
+
+# Lint / typecheck / format
+ruff==0.6.9
+mypy==1.11.2
+types-python-jose==3.3.4.20240106
+
+# Security scanning (optional; CI uses the latest pip-audit)
+pip-audit==2.7.3
+
+# Pre-commit hook runtime
+pre-commit==3.8.0

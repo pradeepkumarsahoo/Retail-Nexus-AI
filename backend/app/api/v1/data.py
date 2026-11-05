@@ -4,23 +4,29 @@ from __future__ import annotations
 import hashlib
 import io
 import json
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.db import get_session
 from app.data.load import (
-    POrow, ProductRow, PromotionRow, SaleRow, StoreRow, SupplierProductRow, SupplierRow, TransferRow,
     InventoryRow,
+    POrow,
+    ProductRow,
+    PromotionRow,
+    SaleRow,
+    StoreRow,
+    SupplierProductRow,
+    SupplierRow,
+    TransferRow,
 )
 from app.models import orm
 from app.schemas.common import IngestResult
-from app.security.auth import Role, User, current_user, require_roles
+from app.security.auth import Role, User, require_roles
 from app.security.rate_limit import rate_limited
-from pydantic import BaseModel
 
 router = APIRouter()
 
@@ -41,7 +47,9 @@ _SCHEMAS = {
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB cap
 
 
-def _ingest_rows(session: Session, dataset: str, rows: list[dict[str, Any]], source_name: str, source_hash: str) -> IngestResult:
+def _ingest_rows(
+    session: Session, dataset: str, rows: list[dict[str, Any]], source_name: str, source_hash: str
+) -> IngestResult:
     if dataset not in _SCHEMAS:
         raise HTTPException(status_code=400, detail=f"Unknown dataset: {dataset}")
     schema, model = _SCHEMAS[dataset]
@@ -55,13 +63,24 @@ def _ingest_rows(session: Session, dataset: str, rows: list[dict[str, Any]], sou
             rejected.append({"row": i, "error": str(e), "raw": raw})
     if accepted:
         session.bulk_insert_mappings(model, accepted)
-    session.add(orm.IngestionLog(
-        source=source_name, dataset=dataset, rows_accepted=len(accepted),
-        rows_rejected=len(rejected), issues=rejected[:50], source_hash=source_hash,
-    ))
+    session.add(
+        orm.IngestionLog(
+            source=source_name,
+            dataset=dataset,
+            rows_accepted=len(accepted),
+            rows_rejected=len(rejected),
+            issues=rejected[:50],
+            source_hash=source_hash,
+        )
+    )
     session.commit()
-    return IngestResult(dataset=dataset, rows_accepted=len(accepted), rows_rejected=len(rejected),
-                        issues=rejected[:50], source_hash=source_hash)
+    return IngestResult(
+        dataset=dataset,
+        rows_accepted=len(accepted),
+        rows_rejected=len(rejected),
+        issues=rejected[:50],
+        source_hash=source_hash,
+    )
 
 
 class IngestBody(BaseModel):
@@ -69,8 +88,9 @@ class IngestBody(BaseModel):
     rows: list[dict[str, Any]]
 
 
-@router.post("/data/ingest", response_model=IngestResult,
-             dependencies=[Depends(rate_limited(limit_per_minute=30))])
+@router.post(
+    "/data/ingest", response_model=IngestResult, dependencies=[Depends(rate_limited(limit_per_minute=30))]
+)
 def ingest_json(
     body: IngestBody,
     session: Session = Depends(get_session),
@@ -81,8 +101,9 @@ def ingest_json(
     return _ingest_rows(session, body.dataset, body.rows, source_name=f"api:{body.dataset}", source_hash=sha)
 
 
-@router.post("/data/upload", response_model=IngestResult,
-             dependencies=[Depends(rate_limited(limit_per_minute=10))])
+@router.post(
+    "/data/upload", response_model=IngestResult, dependencies=[Depends(rate_limited(limit_per_minute=10))]
+)
 async def upload_csv(
     dataset: str,
     file: UploadFile = File(...),

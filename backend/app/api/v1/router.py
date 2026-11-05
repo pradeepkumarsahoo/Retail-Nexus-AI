@@ -5,7 +5,6 @@ from fastapi import APIRouter
 
 from . import agents, analytics, auth, catalog, data, exceptions, health, recommendations, simulations
 
-
 router = APIRouter()
 
 router.include_router(health.router)

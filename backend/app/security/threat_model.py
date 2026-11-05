@@ -44,13 +44,15 @@ Usage (per agent):
     rationale = guard.sanitize_output(rationale, system=SYSTEM_BASE)
     guard.record(state)
 """
+
 from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 from app.security.sanitize import (
     ALLOWED_TOOL_ARGS,
@@ -81,9 +83,15 @@ _PII_PATTERNS: list[tuple[re.Pattern[str], str]] = [
 # Numeric sanity bounds for evidence payloads (LLM04).
 _PROBABILITY_KEYS = {"probability", "confidence", "demand_cv", "supplier_otd_avg"}
 _NON_NEGATIVE_KEYS = {
-    "mean_daily", "mean_daily_demand", "unit_price", "unit_cost",
-    "revenue_at_risk", "expected_expedite_cost", "expected_transfer_cost",
-    "horizon_days", "days_of_supply",
+    "mean_daily",
+    "mean_daily_demand",
+    "unit_price",
+    "unit_cost",
+    "revenue_at_risk",
+    "expected_expedite_cost",
+    "expected_transfer_cost",
+    "horizon_days",
+    "days_of_supply",
 }
 _MAGNITUDE_CEILING = 1e12
 
@@ -101,11 +109,11 @@ class ThreatViolation(Exception):
 
 @dataclass
 class ThreatFinding:
-    code: str            # e.g. "LLM01", "LLM04"
-    severity: str        # "info" | "warn" | "high"
+    code: str  # e.g. "LLM01", "LLM04"
+    severity: str  # "info" | "warn" | "high"
     message: str
     detail: dict[str, Any] = field(default_factory=dict)
-    detected_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    detected_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -156,15 +164,18 @@ class ThreatGuard:
         if tool not in ALLOWED_TOOL_ARGS:
             self._emit("LLM03", "high", f"tool {tool!r} not in global allow-list")
         if tool not in self.allowed_tools:
-            self._emit("LLM06", "high",
-                       f"agent {self.agent!r} not authorized to call {tool!r}",
-                       detail={"allowed": sorted(self.allowed_tools)})
+            self._emit(
+                "LLM06",
+                "high",
+                f"agent {self.agent!r} not authorized to call {tool!r}",
+                detail={"allowed": sorted(self.allowed_tools)},
+            )
         allowed_args = ALLOWED_TOOL_ARGS.get(tool, set())
         extra = set(args) - allowed_args
         if extra:
-            self._emit("LLM05", "warn",
-                       f"dropping unexpected args for {tool!r}",
-                       detail={"extra": sorted(extra)})
+            self._emit(
+                "LLM05", "warn", f"dropping unexpected args for {tool!r}", detail={"extra": sorted(extra)}
+            )
         return {k: v for k, v in args.items() if k in allowed_args}
 
     def sanitize_output(self, text: str, *, system: str) -> str:
@@ -174,8 +185,7 @@ class ThreatGuard:
             return ""
         text = str(text)
         if len(text) > 4000:
-            self._emit("LLM05", "warn", "output truncated",
-                       detail={"original_len": len(text)})
+            self._emit("LLM05", "warn", "output truncated", detail={"original_len": len(text)})
             text = text[:4000]
         # LLM02 — secrets and PII.
         before = text
@@ -187,11 +197,10 @@ class ThreatGuard:
         lowered = text.lower()
         for hint in _SYSTEM_PROMPT_LEAK_HINTS:
             if hint in lowered:
-                self._emit("LLM07", "warn",
-                           "system-prompt fragment appeared in output",
-                           detail={"hint": hint})
-                text = re.sub(re.escape(hint), "[REDACTED_SYSTEM]", text,
-                              flags=re.IGNORECASE)
+                self._emit(
+                    "LLM07", "warn", "system-prompt fragment appeared in output", detail={"hint": hint}
+                )
+                text = re.sub(re.escape(hint), "[REDACTED_SYSTEM]", text, flags=re.IGNORECASE)
                 lowered = text.lower()
         # Additional LLM07 — reject raw system content leak.
         if system and len(system) > 32 and system[:32].lower() in lowered:
@@ -227,35 +236,46 @@ class ThreatGuard:
         if contains_prompt_injection(system or ""):
             suspects.append("system")
         if suspects:
-            self._emit("LLM01", "high",
-                       "prompt-injection patterns detected; directives ignored",
-                       detail={"fields": suspects})
+            self._emit(
+                "LLM01",
+                "high",
+                "prompt-injection patterns detected; directives ignored",
+                detail={"fields": suspects},
+            )
 
     def _check_supply_chain(self) -> None:
         """LLM03 — refuse to run under an unknown provider/model pair."""
         approved_models = APPROVED_PROVIDERS.get(self.provider.lower())
         if approved_models is None:
-            self._emit("LLM03", "high",
-                       "llm provider is not in the approved list",
-                       detail={"provider": self.provider})
+            self._emit(
+                "LLM03",
+                "high",
+                "llm provider is not in the approved list",
+                detail={"provider": self.provider},
+            )
             return
         if self.model not in approved_models:
-            self._emit("LLM03", "warn",
-                       "llm model is outside the pinned set for this provider",
-                       detail={"provider": self.provider, "model": self.model})
+            self._emit(
+                "LLM03",
+                "warn",
+                "llm model is outside the pinned set for this provider",
+                detail={"provider": self.provider, "model": self.model},
+            )
 
     def _check_excessive_agency(self, state: Any) -> None:
         """LLM06 — sanity-check the agent's scope declaration."""
         if not self.allowed_tools:
-            self._emit("LLM06", "info",
-                       f"agent {self.agent!r} declares no tool scope (read-only)")
+            self._emit("LLM06", "info", f"agent {self.agent!r} declares no tool scope (read-only)")
         # If the state carries a tenant/user context, enforce they have not
         # escalated to a role the agent should not be acting on behalf of.
         risk_tier = getattr(state, "risk_tier", None)
         if risk_tier == "CRITICAL" and not getattr(state, "requires_approval", True):
-            self._emit("LLM06", "high",
-                       "critical-tier state reached an agent without approval gate",
-                       detail={"risk_tier": risk_tier})
+            self._emit(
+                "LLM06",
+                "high",
+                "critical-tier state reached an agent without approval gate",
+                detail={"risk_tier": risk_tier},
+            )
 
     def _bound_check_evidence(self, payload: dict[str, Any]) -> dict[str, Any]:
         """LLM04 — reject NaN/Inf, clamp probabilities, drop absurd magnitudes."""
@@ -264,7 +284,7 @@ class ThreatGuard:
             if isinstance(v, dict):
                 out[k] = self._bound_check_evidence(v)
                 continue
-            if isinstance(v, (list, tuple)):
+            if isinstance(v, list | tuple):
                 out[k] = [self._clean_scalar(k, x) for x in v]
                 continue
             out[k] = self._clean_scalar(k, v)
@@ -273,37 +293,47 @@ class ThreatGuard:
     def _clean_scalar(self, key: str, v: Any) -> Any:
         if isinstance(v, bool) or v is None:
             return v
-        if isinstance(v, (int, float)):
+        if isinstance(v, int | float):
             f = float(v)
             if math.isnan(f) or math.isinf(f):
-                self._emit("LLM04", "high",
-                           "non-finite numeric evidence replaced with 0",
-                           detail={"field": key, "value": repr(v)})
+                self._emit(
+                    "LLM04",
+                    "high",
+                    "non-finite numeric evidence replaced with 0",
+                    detail={"field": key, "value": repr(v)},
+                )
                 return 0.0
             if abs(f) > _MAGNITUDE_CEILING:
-                self._emit("LLM04", "high",
-                           "evidence magnitude exceeds sanity ceiling",
-                           detail={"field": key, "value": f})
+                self._emit(
+                    "LLM04",
+                    "high",
+                    "evidence magnitude exceeds sanity ceiling",
+                    detail={"field": key, "value": f},
+                )
                 return math.copysign(_MAGNITUDE_CEILING, f)
             if key in _PROBABILITY_KEYS and (f < 0.0 or f > 1.0):
-                self._emit("LLM04", "warn",
-                           "probability outside [0,1] clamped",
-                           detail={"field": key, "value": f})
+                self._emit(
+                    "LLM04", "warn", "probability outside [0,1] clamped", detail={"field": key, "value": f}
+                )
                 return max(0.0, min(1.0, f))
             if key in _NON_NEGATIVE_KEYS and f < 0:
-                self._emit("LLM04", "warn",
-                           "negative value for non-negative field clamped",
-                           detail={"field": key, "value": f})
+                self._emit(
+                    "LLM04",
+                    "warn",
+                    "negative value for non-negative field clamped",
+                    detail={"field": key, "value": f},
+                )
                 return 0.0
             return f
         return v
 
     def _redact_pii(self, payload: dict[str, Any]) -> dict[str, Any]:
         """LLM02 — walk the payload and redact PII/secrets in free-text."""
+
         def _walk(x: Any) -> Any:
             if isinstance(x, dict):
                 return {k: _walk(v) for k, v in x.items()}
-            if isinstance(x, (list, tuple)):
+            if isinstance(x, list | tuple):
                 return [_walk(v) for v in x]
             if isinstance(x, str):
                 scrubbed = self._scrub_pii_text(redact_sensitive(strip_untrusted(x)))
@@ -322,10 +352,10 @@ class ThreatGuard:
 
     # -- helpers ------------------------------------------------------------
 
-    def _emit(self, code: str, severity: str, message: str,
-              detail: dict[str, Any] | None = None) -> None:
-        self.findings.append(ThreatFinding(code=code, severity=severity,
-                                           message=message, detail=detail or {}))
+    def _emit(self, code: str, severity: str, message: str, detail: dict[str, Any] | None = None) -> None:
+        self.findings.append(
+            ThreatFinding(code=code, severity=severity, message=message, detail=detail or {})
+        )
         if self.strict and severity == "high":
             raise ThreatViolation(f"[{code}] {message}")
 
@@ -336,7 +366,7 @@ class ThreatGuard:
         if isinstance(obj, dict):
             for k, v in obj.items():
                 yield from self._iter_strings(v, f"{prefix}.{k}" if prefix else str(k))
-        elif isinstance(obj, (list, tuple)):
+        elif isinstance(obj, list | tuple):
             for i, v in enumerate(obj):
                 yield from self._iter_strings(v, f"{prefix}[{i}]")
 
@@ -344,10 +374,10 @@ class ThreatGuard:
 # ---- Per-agent scope registry ---------------------------------------------
 
 AGENT_TOOL_SCOPE: dict[str, set[str]] = {
-    "demand_agent":        {"forecast_demand"},
-    "inventory_agent":     {"stockout_probability", "find_transfer_candidates"},
-    "supplier_agent":      {"supplier_reliability", "find_alt_suppliers"},
-    "alt_sourcing_agent":  {"find_alt_suppliers"},
+    "demand_agent": {"forecast_demand"},
+    "inventory_agent": {"stockout_probability", "find_transfer_candidates"},
+    "supplier_agent": {"supplier_reliability", "find_alt_suppliers"},
+    "alt_sourcing_agent": {"find_alt_suppliers"},
     "business_impact_agent": {"lookup_product"},
 }
 

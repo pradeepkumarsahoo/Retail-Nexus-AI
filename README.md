@@ -2,12 +2,20 @@
 
 > **Retail Nexus AI** is an enterprise-oriented Agentic AI platform for retail intelligence, combining **demand forecasting**, **inventory optimization**, and **supply chain exception management** to deliver evidence-backed recommendations, intelligent workflows, and smarter operational decisions. Detect disruptions, investigate them with specialised agents, predict stockouts and supplier delays, simulate corrective actions, and route consequential decisions through human approval. **Every recommendation is evidence-backed and reversible.**
 
+[![backend CI](https://github.com/pradeepsahoo-ms/retail-nexus-ai/actions/workflows/backend.yml/badge.svg)](https://github.com/pradeepsahoo-ms/retail-nexus-ai/actions/workflows/backend.yml)
+[![frontend CI](https://github.com/pradeepsahoo-ms/retail-nexus-ai/actions/workflows/frontend.yml/badge.svg)](https://github.com/pradeepsahoo-ms/retail-nexus-ai/actions/workflows/frontend.yml)
+[![CodeQL](https://github.com/pradeepsahoo-ms/retail-nexus-ai/actions/workflows/codeql.yml/badge.svg)](https://github.com/pradeepsahoo-ms/retail-nexus-ai/actions/workflows/codeql.yml)
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/node-20-green.svg)](https://nodejs.org/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.110-009688.svg)](https://fastapi.tiangolo.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://react.dev/)
-[![License](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000.svg)](https://docs.astral.sh/ruff/)
+[![Checked with mypy](https://img.shields.io/badge/mypy-checked-2a6db2.svg)](https://mypy-lang.org/)
+[![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen.svg)](.pre-commit-config.yaml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-brightgreen.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-reference--build-orange.svg)]()
+
+> **Project governance:** [LICENSE](LICENSE) · [SECURITY.md](SECURITY.md) · [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [CHANGELOG.md](CHANGELOG.md) · [CODEOWNERS](.github/CODEOWNERS)
 
 **Author:** Pradeep Sahoo · Engineering Lead
 **Version:** 0.1.0 · **Updated:** 2026-11-04 · **Scope:** Large-scale retail supply chain ecosystem

@@ -1,12 +1,78 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retail-nexus-ai-backend"
+version = "0.1.0"
+description = "Retail Nexus AI backend — FastAPI + agents + predictive ML for retail intelligence."
+readme = "../README.md"
+requires-python = ">=3.12"
+license = { file = "../LICENSE" }
+authors = [{ name = "Pradeep Sahoo" }]
+keywords = ["retail", "agentic-ai", "forecasting", "supply-chain", "fastapi"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dynamic = ["dependencies", "optional-dependencies"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }
+optional-dependencies = { dev = { file = ["requirements-dev.txt"] } }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["tests*"]
+
 [tool.ruff]
 line-length = 110
 target-version = "py312"
-extend-exclude = ["tests/fixtures"]
+extend-exclude = ["tests/fixtures", ".venv", "build", "dist"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "SIM"]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "PT",  # flake8-pytest-style
+    "RUF", # ruff-specific
+]
 ignore = ["E501", "B008", "UP007", "N818"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*"                = ["S101", "PT011", "PT004"]
+"__init__.py"            = ["F401"]
+# ML code uses scikit-learn naming conventions (X, X_train, X_test).
+"app/ml/**/*.py"         = ["N806", "E741", "RUF003"]
+"app/services/exceptions_engine.py" = ["RUF003"]
+# SQLAlchemy factory + model conventions.
+"app/core/db.py"         = ["N802"]
+"app/models/orm.py"      = ["N801"]
+# Deliberate short alias inside the agents module.
+"app/agents/specialists.py" = ["N812"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
 
 [tool.mypy]
 python_version = "3.12"
@@ -15,3 +81,39 @@ ignore_missing_imports = true
 check_untyped_defs = true
 no_implicit_optional = true
 warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+disallow_untyped_defs = false
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+check_untyped_defs = false
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = [
+    "app/data/generate.py",
+    "app/data/load.py",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "\\.\\.\\.",
+]
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"

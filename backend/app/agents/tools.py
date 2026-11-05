@@ -5,23 +5,21 @@ Each tool is a plain Python function that reads from the ORM/data layer. Argumen
 are validated against `app.security.sanitize.validate_tool_call` before invocation,
 so an LLM that tries to invent arguments gets a clear error back.
 """
-from __future__ import annotations
 
-from datetime import date, timedelta
-from typing import Any
+from __future__ import annotations
 
 import numpy as np
 import pandas as pd
 from sqlalchemy.orm import Session
 
 from app.ml.features import (
-    product_store_daily,
+    days_of_supply,
     demand_features,
     inventory_snapshot_current,
+    product_store_daily,
     supplier_delivery_stats,
-    days_of_supply,
 )
-from app.ml.forecasting.forecast import seasonal_naive, gbm_forecast
+from app.ml.forecasting.forecast import gbm_forecast, seasonal_naive
 from app.ml.stockout.model import predict as predict_stockout
 from app.ml.supplier.risk import score as score_supplier_risk
 from app.repositories import frames as fr
@@ -62,14 +60,24 @@ def lookup_supplier(session: Session, supplier_id: str) -> dict:
 
 
 def forecast_demand(session: Session, product_id: str, store_id: str, horizon_days: int = 14) -> dict:
-    args = validate_tool_call("forecast_demand",
-                              {"product_id": product_id, "store_id": store_id, "horizon_days": horizon_days})
+    args = validate_tool_call(
+        "forecast_demand", {"product_id": product_id, "store_id": store_id, "horizon_days": horizon_days}
+    )
     frames = _frames(session)
     hist = product_store_daily(frames["sales"], args["product_id"], args["store_id"])
     if hist.empty:
-        return {"product_id": args["product_id"], "store_id": args["store_id"], "forecast": [], "model": "none"}
+        return {
+            "product_id": args["product_id"],
+            "store_id": args["store_id"],
+            "forecast": [],
+            "model": "none",
+        }
     feat = demand_features(hist)
-    preds = gbm_forecast(hist, args["horizon_days"]) if len(hist) >= 60 else seasonal_naive(hist, args["horizon_days"])
+    preds = (
+        gbm_forecast(hist, args["horizon_days"])
+        if len(hist) >= 60
+        else seasonal_naive(hist, args["horizon_days"])
+    )
     return {
         "product_id": args["product_id"],
         "store_id": args["store_id"],
@@ -82,25 +90,43 @@ def forecast_demand(session: Session, product_id: str, store_id: str, horizon_da
 
 
 def stockout_probability(session: Session, product_id: str, store_id: str, horizon_days: int = 14) -> dict:
-    args = validate_tool_call("stockout_probability",
-                              {"product_id": product_id, "store_id": store_id, "horizon_days": horizon_days})
+    args = validate_tool_call(
+        "stockout_probability", {"product_id": product_id, "store_id": store_id, "horizon_days": horizon_days}
+    )
     frames = _frames(session)
     hist = product_store_daily(frames["sales"], args["product_id"], args["store_id"])
     inv_now = inventory_snapshot_current(frames["inv"], args["product_id"], args["store_id"])
-    incoming = int(frames["pos"][(frames["pos"]["product_id"] == args["product_id"]) &
-                                 (frames["pos"]["store_id"] == args["store_id"]) &
-                                 (frames["pos"]["status"] == "OPEN")]["units"].sum())
+    incoming = int(
+        frames["pos"][
+            (frames["pos"]["product_id"] == args["product_id"])
+            & (frames["pos"]["store_id"] == args["store_id"])
+            & (frames["pos"]["status"] == "OPEN")
+        ]["units"].sum()
+    )
     sp = frames["sp"]
     sup_ids = sp[(sp["product_id"] == args["product_id"]) & sp["eligible"]]["supplier_id"].tolist()
-    otd = float(np.mean([supplier_delivery_stats(frames["pos"], s)["on_time_delivery_pct"] for s in sup_ids])) if sup_ids else 0.9
-    pred = predict_stockout(hist, inv_now, args["product_id"], args["store_id"],
-                            horizon_days=args["horizon_days"], incoming_po_units=incoming, supplier_otd=otd)
+    otd = (
+        float(np.mean([supplier_delivery_stats(frames["pos"], s)["on_time_delivery_pct"] for s in sup_ids]))
+        if sup_ids
+        else 0.9
+    )
+    pred = predict_stockout(
+        hist,
+        inv_now,
+        args["product_id"],
+        args["store_id"],
+        horizon_days=args["horizon_days"],
+        incoming_po_units=incoming,
+        supplier_otd=otd,
+    )
     return {
         "product_id": pred.product_id,
         "store_id": pred.store_id,
         "horizon_days": pred.horizon_days,
         "probability": pred.probability,
-        "predicted_stockout_date": pred.predicted_stockout_date.isoformat() if pred.predicted_stockout_date else None,
+        "predicted_stockout_date": pred.predicted_stockout_date.isoformat()
+        if pred.predicted_stockout_date
+        else None,
         "risk_category": pred.risk_category,
         "suggested_action": pred.suggested_action,
         "data": pred.data,
@@ -135,16 +161,18 @@ def find_alt_suppliers(session: Session, product_id: str) -> dict:
         if not info:
             continue
         stats = supplier_delivery_stats(frames["pos"], sid)
-        alts.append({
-            "supplier_id": sid,
-            "name": info.get("name"),
-            "lead_time_days": info.get("nominal_lead_time_days"),
-            "capacity_units_per_day": info.get("capacity_units_per_day"),
-            "min_order_qty": info.get("min_order_qty"),
-            "unit_cost": float(r["unit_cost"]),
-            "on_time_delivery_pct": stats["on_time_delivery_pct"],
-            "avg_lead_time_days": stats["avg_lead_time_days"],
-        })
+        alts.append(
+            {
+                "supplier_id": sid,
+                "name": info.get("name"),
+                "lead_time_days": info.get("nominal_lead_time_days"),
+                "capacity_units_per_day": info.get("capacity_units_per_day"),
+                "min_order_qty": info.get("min_order_qty"),
+                "unit_cost": float(r["unit_cost"]),
+                "on_time_delivery_pct": stats["on_time_delivery_pct"],
+                "avg_lead_time_days": stats["avg_lead_time_days"],
+            }
+        )
     alts.sort(key=lambda a: (-a["on_time_delivery_pct"], a["lead_time_days"], a["unit_cost"]))
     return {"product_id": args["product_id"], "alternatives": alts}
 
@@ -170,13 +198,15 @@ def find_transfer_candidates(session: Session, product_id: str, store_id: str) -
         dos = days_of_supply(float(row["on_hand_units"]), feat.mean_daily) if feat.mean_daily > 0 else 999
         # Candidate must have DoS > 30 to be a source
         if dos > 30 and float(row["on_hand_units"]) > 20:
-            cands.append({
-                "from_store_id": sid,
-                "from_store_name": stores.get(sid, {}).get("name"),
-                "available_units": int(row["on_hand_units"]),
-                "donor_days_of_supply": round(float(dos), 1),
-                "donor_mean_daily_demand": round(feat.mean_daily, 2),
-            })
+            cands.append(
+                {
+                    "from_store_id": sid,
+                    "from_store_name": stores.get(sid, {}).get("name"),
+                    "available_units": int(row["on_hand_units"]),
+                    "donor_days_of_supply": round(float(dos), 1),
+                    "donor_mean_daily_demand": round(feat.mean_daily, 2),
+                }
+            )
     cands.sort(key=lambda c: (-c["available_units"], -c["donor_days_of_supply"]))
     return {"candidates": cands[:10]}
 

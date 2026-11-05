@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Simple in-memory rate limiter keyed by client+route. Good enough for a single-node dev build."""
+
 from __future__ import annotations
 
 import time
@@ -34,4 +35,5 @@ def rate_limited(limit_per_minute: int):
     def _dep(request: Request) -> None:
         client = request.client.host if request.client else "unknown"
         _LIMITER.check((client, request.url.path), limit_per_minute)
+
     return _dep

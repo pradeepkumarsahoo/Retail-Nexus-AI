@@ -11,6 +11,7 @@ Approach:
 The service layer calls `predict()` which returns a `StockoutPrediction` with
 probability, risk category, main contributing factors and the suggested action.
 """
+
 from __future__ import annotations
 
 import math
@@ -21,8 +22,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-from app.ml.features import demand_features, inventory_snapshot_current, days_of_supply
-from app.ml.forecasting.forecast import gbm_forecast, seasonal_naive
+from app.ml.features import days_of_supply, demand_features
+from app.ml.forecasting.forecast import seasonal_naive
 
 
 @dataclass
@@ -110,13 +111,20 @@ def predict(
     if stockout_day is not None:
         days_to_stockout = (stockout_day - (preds[0][0] - timedelta(days=1))).days
         z += max(0.0, (horizon_days - days_to_stockout) / horizon_days) * 2.0
+    # Clamp z before the exponential to avoid OverflowError on extreme inputs
+    # (e.g. very low days-of-supply with imminent stockout).
+    z = max(-50.0, min(50.0, z))
     prob = 1.0 / (1.0 + math.exp(-z))
 
     factors = [
         StockoutFactor("days_of_supply", round(dos, 2), -_clip((dos - 5) / 10)),
         StockoutFactor("demand_cv", round(feat.cv_daily, 3), _clip(feat.cv_daily)),
         StockoutFactor("supplier_otd", round(supplier_otd, 3), -_clip((supplier_otd - 0.8) * 3)),
-        StockoutFactor("recent_sales_14", round(feat.recent_sales_14, 2), _clip(feat.recent_sales_14 / max(1, feat.mean_daily * 14) - 1)),
+        StockoutFactor(
+            "recent_sales_14",
+            round(feat.recent_sales_14, 2),
+            _clip(feat.recent_sales_14 / max(1, feat.mean_daily * 14) - 1),
+        ),
         StockoutFactor("in_transit", round(in_transit, 2), -_clip(in_transit / max(1, feat.mean_daily * 14))),
     ]
     data = {
@@ -128,7 +136,9 @@ def predict(
         "forecast_horizon_units": [round(float(v), 2) for v in forecast_vals.tolist()],
     }
     return StockoutPrediction(
-        product_id=product_id, store_id=store_id, horizon_days=horizon_days,
+        product_id=product_id,
+        store_id=store_id,
+        horizon_days=horizon_days,
         probability=round(float(prob), 4),
         predicted_stockout_date=stockout_day,
         risk_category=_categorize(prob),
@@ -143,6 +153,7 @@ def _clip(v: float) -> float:
 
 
 # --- evaluation: compare baseline vs logistic regression ---------------------
+
 
 def build_training_frame(
     sales: pd.DataFrame,
@@ -170,27 +181,42 @@ def build_training_frame(
             window_hist = s_hist_df[s_hist_df["sale_date"] < snap_date].tail(28)
             if len(window_hist) < 14:
                 continue
-            future = s_hist_df[(s_hist_df["sale_date"] >= snap_date) & (s_hist_df["sale_date"] < snap_date + timedelta(days=horizon_days))]
+            future = s_hist_df[
+                (s_hist_df["sale_date"] >= snap_date)
+                & (s_hist_df["sale_date"] < snap_date + timedelta(days=horizon_days))
+            ]
             future_units = int(future["units_sold"].sum())
             cum_demand_days = future.sort_values("sale_date")["units_sold"].cumsum().tolist()
             label = 1 if any(c > (on_hand + in_transit) for c in cum_demand_days) else 0
             mu = float(window_hist["units_sold"].mean())
             sd = float(window_hist["units_sold"].std(ddof=0)) if len(window_hist) > 1 else 0.0
             dos = (on_hand / mu) if mu > 0 else 999.0
-            rows.append({
-                "product_id": pid, "store_id": sid, "snapshot_date": snap_date,
-                "on_hand": on_hand, "in_transit": in_transit,
-                "mean_daily": mu, "std_daily": sd, "cv": sd / mu if mu > 0 else 0.0,
-                "dos": min(dos, 365.0), "future_units": future_units,
-                "stockout_within_horizon": label,
-            })
+            rows.append(
+                {
+                    "product_id": pid,
+                    "store_id": sid,
+                    "snapshot_date": snap_date,
+                    "on_hand": on_hand,
+                    "in_transit": in_transit,
+                    "mean_daily": mu,
+                    "std_daily": sd,
+                    "cv": sd / mu if mu > 0 else 0.0,
+                    "dos": min(dos, 365.0),
+                    "future_units": future_units,
+                    "stockout_within_horizon": label,
+                }
+            )
     return pd.DataFrame(rows)
 
 
 def evaluate_models(frame: pd.DataFrame) -> dict[str, Any]:
     """Temporal split + logistic regression; return baseline vs LR metrics."""
     from sklearn.linear_model import LogisticRegression
-    from sklearn.metrics import brier_score_loss, precision_recall_curve, roc_auc_score, average_precision_score
+    from sklearn.metrics import (
+        average_precision_score,
+        brier_score_loss,
+        roc_auc_score,
+    )
 
     if frame.empty:
         return {"skipped": True, "reason": "empty frame"}

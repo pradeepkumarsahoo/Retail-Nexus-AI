@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Database engine and session management."""
+
 from __future__ import annotations
 
 from collections.abc import Iterator

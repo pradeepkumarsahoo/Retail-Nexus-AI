@@ -6,14 +6,14 @@ change (callers do this). A dispatcher sweeps PENDING rows and hands them to in-
 subscribers. Mapping to SQS/SNS/EventBridge is a trivial adapter swap — see
 `docs/decisions/0004-events.md`.
 """
+
 from __future__ import annotations
 
-import json
 import threading
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -51,13 +51,24 @@ class InProcessBroker:
 BROKER = InProcessBroker()
 
 
-def publish(session: Session, event_type: str, payload: dict, *, correlation_id: str | None = None,
-            source: str = "control-tower") -> str:
+def publish(
+    session: Session,
+    event_type: str,
+    payload: dict,
+    *,
+    correlation_id: str | None = None,
+    source: str = "control-tower",
+) -> str:
     """Insert into outbox within the current session's transaction."""
     eid = f"EVT-{uuid.uuid4().hex}"
     row = orm.OutboxEvent(
-        event_id=eid, event_type=event_type, correlation_id=correlation_id,
-        source=source, schema_version="1", payload=payload, status="PENDING",
+        event_id=eid,
+        event_type=event_type,
+        correlation_id=correlation_id,
+        source=source,
+        schema_version="1",
+        payload=payload,
+        status="PENDING",
     )
     session.add(row)
     return eid
@@ -67,9 +78,11 @@ def dispatch_pending(limit: int = 100) -> int:
     """Dispatch PENDING outbox events to the in-process broker. Returns count dispatched."""
     count = 0
     with session_scope() as s:
-        rows = s.execute(
-            select(orm.OutboxEvent).where(orm.OutboxEvent.status == "PENDING").limit(limit)
-        ).scalars().all()
+        rows = (
+            s.execute(select(orm.OutboxEvent).where(orm.OutboxEvent.status == "PENDING").limit(limit))
+            .scalars()
+            .all()
+        )
         for r in rows:
             evt = {
                 "event_id": r.event_id,
@@ -78,11 +91,11 @@ def dispatch_pending(limit: int = 100) -> int:
                 "source": r.source,
                 "schema_version": r.schema_version,
                 "payload": r.payload,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             }
             BROKER.dispatch(evt)
             r.status = "DISPATCHED"
-            r.dispatched_at = datetime.now(timezone.utc)
+            r.dispatched_at = datetime.now(UTC)
             count += 1
     return count
 

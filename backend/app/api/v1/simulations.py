@@ -40,6 +40,8 @@ def run_simulation(
     non_baseline = [o for o in out_models if o.scenario != "BASELINE"]
     recommended = max(non_baseline, key=lambda x: x.net_benefit_usd).scenario if non_baseline else "BASELINE"
     return SimulationResponse(
-        exception_id=exc.exception_id, horizon_days=body.horizon_days,
-        outcomes=out_models, recommended_scenario=recommended,
+        exception_id=exc.exception_id,
+        horizon_days=body.horizon_days,
+        outcomes=out_models,
+        recommended_scenario=recommended,
     )

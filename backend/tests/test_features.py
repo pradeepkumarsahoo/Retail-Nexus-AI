@@ -1,15 +1,15 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Unit tests for feature engineering."""
+
 from __future__ import annotations
 
 from datetime import date, timedelta
 
 import pandas as pd
-import pytest
 
 from app.ml.features import (
-    demand_features,
     days_of_supply,
+    demand_features,
     product_store_daily,
     supplier_delivery_stats,
 )
@@ -19,9 +19,16 @@ def _make_sales(days: int = 60, pid="P1", sid="S1") -> pd.DataFrame:
     rows = []
     start = date(2026, 1, 1)
     for i in range(days):
-        rows.append({"sale_date": (start + timedelta(days=i)).isoformat(),
-                     "product_id": pid, "store_id": sid,
-                     "units_sold": 10 + (i % 7), "revenue": 100.0, "promotion": False})
+        rows.append(
+            {
+                "sale_date": (start + timedelta(days=i)).isoformat(),
+                "product_id": pid,
+                "store_id": sid,
+                "units_sold": 10 + (i % 7),
+                "revenue": 100.0,
+                "promotion": False,
+            }
+        )
     return pd.DataFrame(rows)
 
 
@@ -57,19 +64,32 @@ def test_supplier_delivery_stats_empty():
 
 
 def test_supplier_delivery_stats_delivered():
-    pos = pd.DataFrame([{
-        "po_id": "P1", "supplier_id": "SUP1", "product_id": "P", "store_id": "S",
-        "units": 10, "order_date": "2026-01-01",
-        "expected_delivery_date": "2026-01-10",
-        "actual_delivery_date": "2026-01-11",  # 1 day slip → still on-time
-        "status": "DELIVERED",
-    }, {
-        "po_id": "P2", "supplier_id": "SUP1", "product_id": "P", "store_id": "S",
-        "units": 10, "order_date": "2026-02-01",
-        "expected_delivery_date": "2026-02-10",
-        "actual_delivery_date": "2026-02-20",  # 10 day slip — late
-        "status": "DELIVERED",
-    }])
+    pos = pd.DataFrame(
+        [
+            {
+                "po_id": "P1",
+                "supplier_id": "SUP1",
+                "product_id": "P",
+                "store_id": "S",
+                "units": 10,
+                "order_date": "2026-01-01",
+                "expected_delivery_date": "2026-01-10",
+                "actual_delivery_date": "2026-01-11",  # 1 day slip → still on-time
+                "status": "DELIVERED",
+            },
+            {
+                "po_id": "P2",
+                "supplier_id": "SUP1",
+                "product_id": "P",
+                "store_id": "S",
+                "units": 10,
+                "order_date": "2026-02-01",
+                "expected_delivery_date": "2026-02-10",
+                "actual_delivery_date": "2026-02-20",  # 10 day slip — late
+                "status": "DELIVERED",
+            },
+        ]
+    )
     stats = supplier_delivery_stats(pos, "SUP1")
     assert stats["total_po_count"] == 2
     assert stats["on_time_delivery_pct"] == 0.5

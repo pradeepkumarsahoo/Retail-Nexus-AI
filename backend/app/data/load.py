@@ -3,20 +3,22 @@
 
 Validates every row via Pydantic and records ingestion lineage.
 """
+
 from __future__ import annotations
 
 import argparse
 import csv
 import hashlib
 import json
-from datetime import date, datetime
+from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
-from typing import Any, Iterable, Iterator
+from typing import Any
 
 from pydantic import BaseModel, ValidationError, field_validator
 from sqlalchemy import delete, insert
 
-from app.core.db import engine, init_db, session_scope
+from app.core.db import init_db, session_scope
 from app.core.logging import configure_logging, get_logger
 from app.models import orm
 
@@ -149,7 +151,7 @@ def _read_csv(path: Path) -> Iterator[dict[str, Any]]:
     with path.open("r", encoding="utf-8", newline="") as f:
         reader = csv.DictReader(f)
         for row in reader:
-            yield {k: v for k, v in row.items()}
+            yield dict(row.items())
 
 
 def _hash_file(path: Path) -> str:
@@ -190,9 +192,7 @@ def _wipe_tables() -> None:
             s.execute(delete(cls))
 
 
-def _validate_and_collect(
-    path: Path, schema: type[BaseModel]
-) -> tuple[list[dict], list[dict]]:
+def _validate_and_collect(path: Path, schema: type[BaseModel]) -> tuple[list[dict], list[dict]]:
     accepted: list[dict] = []
     rejected: list[dict] = []
     for i, raw in enumerate(_read_csv(path), start=2):
@@ -204,13 +204,20 @@ def _validate_and_collect(
     return accepted, rejected
 
 
-def _log_ingestion(dataset: str, source: str, accepted: int, rejected_rows: list[dict], source_hash: str) -> None:
+def _log_ingestion(
+    dataset: str, source: str, accepted: int, rejected_rows: list[dict], source_hash: str
+) -> None:
     with session_scope() as s:
-        s.add(orm.IngestionLog(
-            source=source, dataset=dataset,
-            rows_accepted=accepted, rows_rejected=len(rejected_rows),
-            issues=rejected_rows[:50], source_hash=source_hash,
-        ))
+        s.add(
+            orm.IngestionLog(
+                source=source,
+                dataset=dataset,
+                rows_accepted=accepted,
+                rows_rejected=len(rejected_rows),
+                issues=rejected_rows[:50],
+                source_hash=source_hash,
+            )
+        )
 
 
 def load_all(data_dir: Path, wipe: bool = True) -> dict[str, Any]:
@@ -239,7 +246,9 @@ def load_all(data_dir: Path, wipe: bool = True) -> dict[str, Any]:
         accepted, rejected = _validate_and_collect(path, schema)
         _bulk_insert(model_cls, accepted)
         src_hash = _hash_file(path)
-        _log_ingestion(dataset, source=fname, accepted=len(accepted), rejected_rows=rejected, source_hash=src_hash)
+        _log_ingestion(
+            dataset, source=fname, accepted=len(accepted), rejected_rows=rejected, source_hash=src_hash
+        )
         report[dataset] = {"accepted": len(accepted), "rejected": len(rejected)}
         log.info("loaded", dataset=dataset, accepted=len(accepted), rejected=len(rejected))
     return report

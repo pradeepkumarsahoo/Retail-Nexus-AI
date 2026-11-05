@@ -5,6 +5,7 @@ Agents and approvals never write to real ERP/WMS/OMS. This module records
 intended actions as audit entries and emits an `ActionExecuted` event so the
 rest of the system observes the outcome identically to a real adapter.
 """
+
 from __future__ import annotations
 
 from sqlalchemy.orm import Session

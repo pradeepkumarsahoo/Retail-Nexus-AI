@@ -1,10 +1,10 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """SQLAlchemy ORM models for Retail Nexus AI."""
+
 from __future__ import annotations
 
-from datetime import datetime, date
-
 from sqlalchemy import (
+    JSON,
     Boolean,
     Column,
     Date,
@@ -12,13 +12,11 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
-    JSON,
     String,
     Text,
     UniqueConstraint,
     func,
 )
-from sqlalchemy.orm import relationship
 
 from app.core.db import Base
 
@@ -74,9 +72,7 @@ class InventorySnapshot(Base):
     store_id = Column(String(32), ForeignKey("stores.store_id"), nullable=False)
     on_hand_units = Column(Integer, nullable=False)
     in_transit_units = Column(Integer, nullable=False, default=0)
-    __table_args__ = (
-        UniqueConstraint("snapshot_date", "product_id", "store_id", name="uq_inv_snap"),
-    )
+    __table_args__ = (UniqueConstraint("snapshot_date", "product_id", "store_id", name="uq_inv_snap"),)
 
 
 class SalesTransaction(Base):
@@ -181,7 +177,9 @@ class Recommendation(Base):
 class ApprovalEvent(Base):
     __tablename__ = "approval_events"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    recommendation_id = Column(String(32), ForeignKey("recommendations.recommendation_id"), nullable=False, index=True)
+    recommendation_id = Column(
+        String(32), ForeignKey("recommendations.recommendation_id"), nullable=False, index=True
+    )
     user = Column(String(80), nullable=False)
     role = Column(String(32), nullable=False)
     decision = Column(String(32), nullable=False)  # APPROVE / REJECT / REQUEST_EVIDENCE

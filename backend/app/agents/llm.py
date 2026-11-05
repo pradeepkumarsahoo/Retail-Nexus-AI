@@ -9,6 +9,7 @@ Alternate providers (openai, bedrock) are wired behind the same interface. They
 are not exercised by tests unless credentials are present — the mock path is the
 contract.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -20,7 +21,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.core.config import get_settings
-from app.security.sanitize import strip_untrusted, contains_prompt_injection
+from app.security.sanitize import contains_prompt_injection, strip_untrusted
 
 
 @dataclass
@@ -44,6 +45,7 @@ class LLMProvider(ABC):
 
 
 # ---- mock provider ---------------------------------------------------------
+
 
 class MockLLM(LLMProvider):
     name = "mock"
@@ -147,12 +149,14 @@ class MockLLM(LLMProvider):
 
 # ---- openai / bedrock stubs ------------------------------------------------
 
+
 class OpenAICompatibleLLM(LLMProvider):
     name = "openai"
     model = "gpt-4o-mini"
 
     def __init__(self) -> None:
         import httpx
+
         self.client = httpx.Client(timeout=30.0)
         self.model = os.getenv("LLM_MODEL", self.model)
         self.base = os.getenv("OPENAI_BASE_URL") or "https://api.openai.com/v1"
@@ -202,12 +206,14 @@ class BedrockLLM(LLMProvider):
 
     def complete_json(self, system: str, user: str, schema_hint: str | None = None) -> LLMResponse:
         start = time.perf_counter()
-        body = json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1024,
-            "system": system,
-            "messages": [{"role": "user", "content": user}],
-        })
+        body = json.dumps(
+            {
+                "anthropic_version": "bedrock-2023-05-31",
+                "max_tokens": 1024,
+                "system": system,
+                "messages": [{"role": "user", "content": user}],
+            }
+        )
         resp = self.client.invoke_model(modelId=self.model, body=body)
         raw = json.loads(resp["body"].read())
         text = raw.get("content", [{}])[0].get("text", "{}")
@@ -235,6 +241,7 @@ def get_provider() -> LLMProvider:
     except Exception as e:
         # Fail safe: fall back to mock. The caller sees provider=mock in the trace.
         from app.core.logging import get_logger
+
         get_logger("llm").warning("provider_fallback", requested=name, error=str(e))
         return MockLLM()
     return MockLLM()

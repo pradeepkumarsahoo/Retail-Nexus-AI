@@ -7,13 +7,13 @@ labelled ground-truth events for model evaluation.
 
 Determinism: fixed seed. Marked synthetic in a `_meta.json`.
 """
+
 from __future__ import annotations
 
 import argparse
 import csv
 import json
 import math
-import os
 import random
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -24,6 +24,7 @@ import numpy as np
 
 # ---- parameters ------------------------------------------------------------
 
+
 @dataclass(frozen=True)
 class GenParams:
     n_products: int = 100
@@ -33,12 +34,20 @@ class GenParams:
     start_date: date = date(2026, 1, 1)
     seed: int = 42
     categories: tuple[str, ...] = (
-        "Grocery", "Beverage", "Dairy", "Snacks", "Household", "Personal Care", "Electronics", "Apparel"
+        "Grocery",
+        "Beverage",
+        "Dairy",
+        "Snacks",
+        "Household",
+        "Personal Care",
+        "Electronics",
+        "Apparel",
     )
     regions: tuple[str, ...] = ("Northeast", "Southeast", "Midwest", "Southwest", "West")
 
 
 # ---- helpers ---------------------------------------------------------------
+
 
 def _rand(seed: int) -> tuple[random.Random, np.random.Generator]:
     r = random.Random(seed)
@@ -57,6 +66,7 @@ def _write_csv(path: Path, header: list[str], rows: list[list[Any]]) -> None:
 
 # ---- generators ------------------------------------------------------------
 
+
 def gen_products(p: GenParams, r: random.Random) -> list[dict]:
     out = []
     for i in range(p.n_products):
@@ -66,9 +76,14 @@ def gen_products(p: GenParams, r: random.Random) -> list[dict]:
         price = round(cost * r.uniform(1.3, 2.6), 2)
         shelf = r.choice([None, 14, 30, 60, 180, 365])
         out.append(
-            dict(product_id=pid, name=f"{cat} Item {i+1}", category=cat,
-                 unit_cost=cost, unit_price=price,
-                 shelf_life_days=shelf if shelf is not None else "")
+            {
+                "product_id": pid,
+                "name": f"{cat} Item {i+1}",
+                "category": cat,
+                "unit_cost": cost,
+                "unit_price": price,
+                "shelf_life_days": shelf if shelf is not None else "",
+            }
         )
     return out
 
@@ -87,7 +102,15 @@ def gen_stores(p: GenParams, r: random.Random) -> list[dict]:
         region = p.regions[i % len(p.regions)]
         city = r.choice(cities[region])
         size = r.choice([8000, 12000, 18000, 25000, 32000])
-        out.append(dict(store_id=sid, name=f"Store #{i+1} {city}", region=region, city=city, size_sqft=size))
+        out.append(
+            {
+                "store_id": sid,
+                "name": f"Store #{i+1} {city}",
+                "region": region,
+                "city": city,
+                "size_sqft": size,
+            }
+        )
     return out
 
 
@@ -102,20 +125,29 @@ def gen_suppliers(p: GenParams, r: random.Random, products: list[dict]) -> tuple
         # Explicit ground-truth: 2 of the 10 are flaky suppliers (lower reliability).
         reliability = 0.60 if i in (3, 7) else r.uniform(0.85, 0.98)
         region = p.regions[i % len(p.regions)]
-        suppliers.append(dict(
-            supplier_id=sid, name=f"Supplier {chr(65+i)} Inc.", region=region,
-            nominal_lead_time_days=lead, capacity_units_per_day=cap, min_order_qty=moq,
-            reliability_hint=round(reliability, 3),
-        ))
+        suppliers.append(
+            {
+                "supplier_id": sid,
+                "name": f"Supplier {chr(65+i)} Inc.",
+                "region": region,
+                "nominal_lead_time_days": lead,
+                "capacity_units_per_day": cap,
+                "min_order_qty": moq,
+                "reliability_hint": round(reliability, 3),
+            }
+        )
         # Each supplier can supply ~40% of products at a cost markup.
         for prod in products:
             if r.random() < 0.4:
                 markup = r.uniform(0.9, 1.2)
-                sup_products.append(dict(
-                    supplier_id=sid, product_id=prod["product_id"],
-                    unit_cost=round(float(prod["unit_cost"]) * markup, 2),
-                    eligible=True,
-                ))
+                sup_products.append(
+                    {
+                        "supplier_id": sid,
+                        "product_id": prod["product_id"],
+                        "unit_cost": round(float(prod["unit_cost"]) * markup, 2),
+                        "eligible": True,
+                    }
+                )
     # Guarantee every product has at least one eligible supplier.
     by_prod = {p["product_id"]: [] for p in products}
     for sp in sup_products:
@@ -123,10 +155,14 @@ def gen_suppliers(p: GenParams, r: random.Random, products: list[dict]) -> tuple
     for prod in products:
         if not by_prod[prod["product_id"]]:
             sup = suppliers[r.randrange(len(suppliers))]
-            sup_products.append(dict(
-                supplier_id=sup["supplier_id"], product_id=prod["product_id"],
-                unit_cost=round(float(prod["unit_cost"]) * 1.05, 2), eligible=True,
-            ))
+            sup_products.append(
+                {
+                    "supplier_id": sup["supplier_id"],
+                    "product_id": prod["product_id"],
+                    "unit_cost": round(float(prod["unit_cost"]) * 1.05, 2),
+                    "eligible": True,
+                }
+            )
     return suppliers, sup_products
 
 
@@ -169,12 +205,15 @@ def gen_sales_and_inventory_and_events(
             if r.random() < 0.1:
                 start_offset = r.randint(30, p.days - 15)
                 start = p.start_date + timedelta(days=start_offset)
-                promos.append(dict(
-                    product_id=prod["product_id"], store_id=st["store_id"],
-                    start_date=start.isoformat(),
-                    end_date=(start + timedelta(days=6)).isoformat(),
-                    uplift_factor=round(r.uniform(1.4, 2.5), 2),
-                ))
+                promos.append(
+                    {
+                        "product_id": prod["product_id"],
+                        "store_id": st["store_id"],
+                        "start_date": start.isoformat(),
+                        "end_date": (start + timedelta(days=6)).isoformat(),
+                        "uplift_factor": round(r.uniform(1.4, 2.5), 2),
+                    }
+                )
 
     # Supply disruption windows: for the two flaky suppliers, add a 10-day region shock.
     disruptions: list[tuple[str, int, int]] = []
@@ -182,17 +221,23 @@ def gen_sales_and_inventory_and_events(
         if sup["reliability_hint"] < 0.7:
             start = r.randint(80, p.days - 60)
             disruptions.append((sup["region"], start, start + 10))
-            labels.append(dict(
-                event_type="REGIONAL_DISRUPTION",
-                region=sup["region"], start_day=start, end_day=start + 10,
-                supplier_id=sup["supplier_id"],
-            ))
+            labels.append(
+                {
+                    "event_type": "REGIONAL_DISRUPTION",
+                    "region": sup["region"],
+                    "start_day": start,
+                    "end_day": start + 10,
+                    "supplier_id": sup["supplier_id"],
+                }
+            )
 
     # On-hand inventory starting state
     inv_state: dict[tuple[str, str], float] = {}
     for prod in products:
         for st in stores:
-            inv_state[(prod["product_id"], st["store_id"])] = max(10.0, base_demand[(prod["product_id"], st["store_id"])] * 14.0)
+            inv_state[(prod["product_id"], st["store_id"])] = max(
+                10.0, base_demand[(prod["product_id"], st["store_id"])] * 14.0
+            )
 
     # Scheduled replenishment plan — simple reorder point policy
     po_counter = 1
@@ -202,7 +247,11 @@ def gen_sales_and_inventory_and_events(
     for pr in promos:
         key = (pr["product_id"], pr["store_id"])
         promo_lookup.setdefault(key, []).append(
-            (date.fromisoformat(pr["start_date"]), date.fromisoformat(pr["end_date"]), float(pr["uplift_factor"]))
+            (
+                date.fromisoformat(pr["start_date"]),
+                date.fromisoformat(pr["end_date"]),
+                float(pr["uplift_factor"]),
+            )
         )
 
     # Demand spike/decline injections — labelled ground truth for anomaly eval.
@@ -218,9 +267,18 @@ def gen_sales_and_inventory_and_events(
             factor = r.uniform(0.1, 0.4)
             kind = "DEMAND_DECLINE"
         anomaly_events.append((prod["product_id"], st["store_id"], day, factor, kind))
-        labels.append(dict(event_type=kind, product_id=prod["product_id"], store_id=st["store_id"],
-                           day=day, factor=round(factor, 2)))
-    anomaly_lookup: dict[tuple[str, str, int], float] = {(pid, sid, d): f for pid, sid, d, f, _ in anomaly_events}
+        labels.append(
+            {
+                "event_type": kind,
+                "product_id": prod["product_id"],
+                "store_id": st["store_id"],
+                "day": day,
+                "factor": round(factor, 2),
+            }
+        )
+    anomaly_lookup: dict[tuple[str, str, int], float] = {
+        (pid, sid, d): f for pid, sid, d, f, _ in anomaly_events
+    }
 
     # Pre-seed some open POs that are late (labelled)
     for _ in range(40):
@@ -239,16 +297,28 @@ def gen_sales_and_inventory_and_events(
         slip = max(0, int(npr.normal(0, (1.0 - sup["reliability_hint"]) * 12)))
         actual = expected + timedelta(days=slip)
         status = "DELIVERED" if actual <= p.start_date + timedelta(days=p.days - 1) else "OPEN"
-        pos.append(dict(
-            po_id=f"PO{po_counter:06d}", supplier_id=sup["supplier_id"], product_id=prod["product_id"],
-            store_id=st["store_id"], units=int(max(50, npr.normal(500, 150))),
-            order_date=order_date.isoformat(), expected_delivery_date=expected.isoformat(),
-            actual_delivery_date=actual.isoformat() if status == "DELIVERED" else "",
-            status=status,
-        ))
+        pos.append(
+            {
+                "po_id": f"PO{po_counter:06d}",
+                "supplier_id": sup["supplier_id"],
+                "product_id": prod["product_id"],
+                "store_id": st["store_id"],
+                "units": int(max(50, npr.normal(500, 150))),
+                "order_date": order_date.isoformat(),
+                "expected_delivery_date": expected.isoformat(),
+                "actual_delivery_date": actual.isoformat() if status == "DELIVERED" else "",
+                "status": status,
+            }
+        )
         if slip > 2:
-            labels.append(dict(event_type="SUPPLIER_DELAY", po_id=f"PO{po_counter:06d}",
-                               supplier_id=sup["supplier_id"], slip_days=slip))
+            labels.append(
+                {
+                    "event_type": "SUPPLIER_DELAY",
+                    "po_id": f"PO{po_counter:06d}",
+                    "supplier_id": sup["supplier_id"],
+                    "slip_days": slip,
+                }
+            )
         po_counter += 1
 
     # Day loop
@@ -268,7 +338,7 @@ def gen_sales_and_inventory_and_events(
                         is_promo = True
                         break
                 # Anomaly injection
-                if key + (d,) in anomaly_lookup:
+                if (*key, d) in anomaly_lookup:
                     mu_eff *= anomaly_lookup[(prod["product_id"], st["store_id"], d)]
                 # Realized demand
                 realized = max(0, int(npr.poisson(mu_eff)))
@@ -277,13 +347,26 @@ def gen_sales_and_inventory_and_events(
                 sold = min(realized, int(on_hand))
                 lost = realized - sold
                 if lost > 0 and d >= 7:
-                    labels.append(dict(event_type="LOST_SALES", product_id=prod["product_id"],
-                                       store_id=st["store_id"], day=d, units=lost))
+                    labels.append(
+                        {
+                            "event_type": "LOST_SALES",
+                            "product_id": prod["product_id"],
+                            "store_id": st["store_id"],
+                            "day": d,
+                            "units": lost,
+                        }
+                    )
                 revenue = round(sold * float(prod["unit_price"]), 2)
-                sales.append(dict(
-                    sale_date=day.isoformat(), product_id=prod["product_id"], store_id=st["store_id"],
-                    units_sold=sold, revenue=revenue, promotion=is_promo,
-                ))
+                sales.append(
+                    {
+                        "sale_date": day.isoformat(),
+                        "product_id": prod["product_id"],
+                        "store_id": st["store_id"],
+                        "units_sold": sold,
+                        "revenue": revenue,
+                        "promotion": is_promo,
+                    }
+                )
                 inv_state[key] = on_hand - sold
                 # Reorder policy — if days-of-supply < 7, place a PO.
                 dos = (inv_state[key] / max(1.0, mu)) if mu > 0 else 999
@@ -302,15 +385,22 @@ def gen_sales_and_inventory_and_events(
                         # Did the delivery actually happen before the end of our horizon?
                         slip = max(0, int(npr.normal(0, (1.0 - sup["reliability_hint"]) * 8)))
                         actual = expected + timedelta(days=slip)
-                        status = "DELIVERED" if actual <= p.start_date + timedelta(days=p.days - 1) else "OPEN"
-                        pos.append(dict(
-                            po_id=f"PO{po_counter:06d}", supplier_id=sup["supplier_id"],
-                            product_id=prod["product_id"], store_id=st["store_id"],
-                            units=qty, order_date=day.isoformat(),
-                            expected_delivery_date=expected.isoformat(),
-                            actual_delivery_date=actual.isoformat() if status == "DELIVERED" else "",
-                            status=status,
-                        ))
+                        status = (
+                            "DELIVERED" if actual <= p.start_date + timedelta(days=p.days - 1) else "OPEN"
+                        )
+                        pos.append(
+                            {
+                                "po_id": f"PO{po_counter:06d}",
+                                "supplier_id": sup["supplier_id"],
+                                "product_id": prod["product_id"],
+                                "store_id": st["store_id"],
+                                "units": qty,
+                                "order_date": day.isoformat(),
+                                "expected_delivery_date": expected.isoformat(),
+                                "actual_delivery_date": actual.isoformat() if status == "DELIVERED" else "",
+                                "status": status,
+                            }
+                        )
                         po_counter += 1
                 # Deliveries landing today add to inventory
                 # (handled below in a sweep for efficiency)
@@ -330,32 +420,49 @@ def gen_sales_and_inventory_and_events(
                     key = (prod["product_id"], st["store_id"])
                     on_hand = max(0, int(inv_state[key]))
                     in_transit = sum(
-                        int(po["units"]) for po in pos
+                        int(po["units"])
+                        for po in pos
                         if po["status"] in ("OPEN", "DELIVERED")
                         and po["product_id"] == prod["product_id"]
                         and po["store_id"] == st["store_id"]
                         and po["order_date"] <= day.isoformat()
                         and (po["actual_delivery_date"] == "" or po["actual_delivery_date"] > day.isoformat())
                     )
-                    inv_snaps.append(dict(
-                        snapshot_date=day.isoformat(), product_id=prod["product_id"],
-                        store_id=st["store_id"], on_hand_units=on_hand, in_transit_units=in_transit,
-                    ))
+                    inv_snaps.append(
+                        {
+                            "snapshot_date": day.isoformat(),
+                            "product_id": prod["product_id"],
+                            "store_id": st["store_id"],
+                            "on_hand_units": on_hand,
+                            "in_transit_units": in_transit,
+                        }
+                    )
 
     # A handful of store transfers (synthetic)
     for i in range(40):
         prod = r.choice(products)
         a, b = r.sample(stores, 2)
         day = p.start_date + timedelta(days=r.randint(30, p.days - 2))
-        transfers.append(dict(
-            transfer_id=f"T{i+1:05d}", product_id=prod["product_id"],
-            from_store_id=a["store_id"], to_store_id=b["store_id"],
-            units=r.randint(20, 200), created_date=day.isoformat(), status="COMPLETED",
-        ))
+        transfers.append(
+            {
+                "transfer_id": f"T{i+1:05d}",
+                "product_id": prod["product_id"],
+                "from_store_id": a["store_id"],
+                "to_store_id": b["store_id"],
+                "units": r.randint(20, 200),
+                "created_date": day.isoformat(),
+                "status": "COMPLETED",
+            }
+        )
 
-    return dict(
-        sales=sales, inventory=inv_snaps, pos=pos, transfers=transfers, promos=promos, labels=labels,
-    )
+    return {
+        "sales": sales,
+        "inventory": inv_snaps,
+        "pos": pos,
+        "transfers": transfers,
+        "promos": promos,
+        "labels": labels,
+    }
 
 
 def main() -> None:
@@ -379,16 +486,43 @@ def main() -> None:
     _write_csv(out_dir / "products.csv", list(products[0].keys()), [list(x.values()) for x in products])
     _write_csv(out_dir / "stores.csv", list(stores[0].keys()), [list(x.values()) for x in stores])
     _write_csv(out_dir / "suppliers.csv", list(suppliers[0].keys()), [list(x.values()) for x in suppliers])
-    _write_csv(out_dir / "supplier_products.csv", list(sup_products[0].keys()), [list(x.values()) for x in sup_products])
-    _write_csv(out_dir / "sales.csv", list(frames["sales"][0].keys()), [list(x.values()) for x in frames["sales"]])
-    _write_csv(out_dir / "inventory.csv", list(frames["inventory"][0].keys()), [list(x.values()) for x in frames["inventory"]])
-    _write_csv(out_dir / "purchase_orders.csv", list(frames["pos"][0].keys()), [list(x.values()) for x in frames["pos"]])
-    _write_csv(out_dir / "store_transfers.csv", list(frames["transfers"][0].keys()), [list(x.values()) for x in frames["transfers"]])
+    _write_csv(
+        out_dir / "supplier_products.csv",
+        list(sup_products[0].keys()),
+        [list(x.values()) for x in sup_products],
+    )
+    _write_csv(
+        out_dir / "sales.csv", list(frames["sales"][0].keys()), [list(x.values()) for x in frames["sales"]]
+    )
+    _write_csv(
+        out_dir / "inventory.csv",
+        list(frames["inventory"][0].keys()),
+        [list(x.values()) for x in frames["inventory"]],
+    )
+    _write_csv(
+        out_dir / "purchase_orders.csv",
+        list(frames["pos"][0].keys()),
+        [list(x.values()) for x in frames["pos"]],
+    )
+    _write_csv(
+        out_dir / "store_transfers.csv",
+        list(frames["transfers"][0].keys()),
+        [list(x.values()) for x in frames["transfers"]],
+    )
     if frames["promos"]:
-        _write_csv(out_dir / "promotions.csv", list(frames["promos"][0].keys()), [list(x.values()) for x in frames["promos"]])
-    _write_csv(out_dir / "labels_ground_truth.csv",
-               ["event_type", "payload"],
-               [[row["event_type"], json.dumps({k: v for k, v in row.items() if k != "event_type"})] for row in frames["labels"]])
+        _write_csv(
+            out_dir / "promotions.csv",
+            list(frames["promos"][0].keys()),
+            [list(x.values()) for x in frames["promos"]],
+        )
+    _write_csv(
+        out_dir / "labels_ground_truth.csv",
+        ["event_type", "payload"],
+        [
+            [row["event_type"], json.dumps({k: v for k, v in row.items() if k != "event_type"})]
+            for row in frames["labels"]
+        ],
+    )
     meta = {
         "synthetic": True,
         "seed": p.seed,

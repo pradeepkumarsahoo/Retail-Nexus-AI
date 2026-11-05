@@ -1,0 +1,11 @@
+# Default owner for everything in the repo.
+*                       @pradeepsahoo-ms
+
+# Area owners.
+/backend/               @pradeepsahoo-ms
+/frontend/              @pradeepsahoo-ms
+/ml/                    @pradeepsahoo-ms
+/infrastructure/        @pradeepsahoo-ms
+/.github/               @pradeepsahoo-ms
+/docs/security/         @pradeepsahoo-ms
+SECURITY.md             @pradeepsahoo-ms

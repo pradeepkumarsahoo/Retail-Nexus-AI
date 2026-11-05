@@ -1,10 +1,11 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Security controls — prompt-injection defense, tool-arg validation, redaction, approval RBAC."""
+
 from __future__ import annotations
 
 import pytest
 
-from app.security.auth import Role, can_approve, User
+from app.security.auth import Role, User, can_approve
 from app.security.sanitize import (
     contains_prompt_injection,
     redact_sensitive,

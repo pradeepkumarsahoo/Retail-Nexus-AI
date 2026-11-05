@@ -1,8 +1,10 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Application configuration via environment variables."""
+
 from __future__ import annotations
 
 from functools import lru_cache
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 

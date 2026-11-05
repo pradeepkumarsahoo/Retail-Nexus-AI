@@ -8,15 +8,16 @@ Nodes:
 Features: conditional edges, per-node timeout (soft), max-step limit, retry with
 backoff, checkpointing of state after each node.
 """
+
 from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime, timezone
-from typing import Callable
+from collections.abc import Callable
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
-from tenacity import Retrying, stop_after_attempt, wait_fixed, RetryError
+from tenacity import RetryError, Retrying, stop_after_attempt, wait_fixed
 
 from app.agents.llm import LLMProvider, get_provider
 from app.agents.specialists import (
@@ -41,7 +42,13 @@ def _route(category: str) -> list[str]:
     if c in ("DEMAND_SPIKE", "DEMAND_DECLINE", "SALES_ANOMALY"):
         return ["demand_agent", "inventory_agent", "business_impact_agent"]
     if c in ("STOCKOUT_RISK", "LOW_DAYS_OF_SUPPLY"):
-        return ["demand_agent", "inventory_agent", "supplier_agent", "alt_sourcing_agent", "business_impact_agent"]
+        return [
+            "demand_agent",
+            "inventory_agent",
+            "supplier_agent",
+            "alt_sourcing_agent",
+            "business_impact_agent",
+        ]
     if c in ("SUPPLIER_DELAY", "SUPPLIER_CAPACITY"):
         return ["supplier_agent", "alt_sourcing_agent", "business_impact_agent"]
     if c in ("EXCESS_INVENTORY", "AGING_INVENTORY"):
@@ -70,8 +77,9 @@ def _run_node(name: str, session: Session, llm: LLMProvider, state: AgentState, 
         return impl(session, llm, state)
 
     try:
-        for attempt in Retrying(stop=stop_after_attempt(get_settings().agent_max_retries + 1),
-                                wait=wait_fixed(0.4), reraise=True):
+        for attempt in Retrying(
+            stop=stop_after_attempt(get_settings().agent_max_retries + 1), wait=wait_fixed(0.4), reraise=True
+        ):
             with attempt:
                 s = _call()
                 dur = time.perf_counter() - t0
@@ -81,11 +89,15 @@ def _run_node(name: str, session: Session, llm: LLMProvider, state: AgentState, 
                     log.warning("node_slow", node=name, duration_s=round(dur, 2))
                 return s
     except RetryError as e:
-        state.steps.append(AgentStep(
-            name=name, started_at=datetime.now(timezone.utc),
-            finished_at=datetime.now(timezone.utc),
-            status="error", error=f"retry_exhausted: {e!s}",
-        ))
+        state.steps.append(
+            AgentStep(
+                name=name,
+                started_at=datetime.now(UTC),
+                finished_at=datetime.now(UTC),
+                status="error",
+                error=f"retry_exhausted: {e!s}",
+            )
+        )
         return state
     return state
 
@@ -94,6 +106,7 @@ def _rank_recommendations(drafts: list[RecommendationDraft]) -> list[Recommendat
     def key(d: RecommendationDraft):
         tier = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFORMATIONAL": 0}.get(d.risk_tier, 2)
         return (-tier, -d.estimated_net_benefit, -d.confidence)
+
     return sorted(drafts, key=key)
 
 
@@ -117,8 +130,7 @@ def _draft_recommendations(state: AgentState) -> list[RecommendationDraft]:
     drafts: list[RecommendationDraft] = []
 
     supporting = [
-        {"source": e.source, "rationale": e.rationale, "confidence": e.confidence}
-        for e in state.evidence
+        {"source": e.source, "rationale": e.rationale, "confidence": e.confidence} for e in state.evidence
     ]
 
     prob = 0.0
@@ -134,124 +146,140 @@ def _draft_recommendations(state: AgentState) -> list[RecommendationDraft]:
         if transfer_candidates:
             donor = transfer_candidates[0]
             move_units = min(int(donor.get("available_units", 0)) // 2, 200)
-            expected_transfer_cost = float(biz_entry.data.get("expected_transfer_cost", 0.0)) if biz_entry else 0.0
+            expected_transfer_cost = (
+                float(biz_entry.data.get("expected_transfer_cost", 0.0)) if biz_entry else 0.0
+            )
             net_benefit = round(revenue_at_risk - expected_transfer_cost, 2)
-            drafts.append(RecommendationDraft(
-                recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
-                exception_id=state.exception_id,
-                action_type=ActionType.TRANSFER_INVENTORY.value,
-                priority="HIGH" if prob >= 0.5 else "MEDIUM",
-                affected_products=[state.product_id] if state.product_id else [],
-                affected_stores=[state.store_id, donor["from_store_id"]] if state.store_id else [donor["from_store_id"]],
-                supporting_evidence=supporting,
-                business_rationale=(
-                    f"Transfer {move_units} units from store {donor.get('from_store_name', donor['from_store_id'])} "
-                    f"(donor DoS={donor.get('donor_days_of_supply')}) to protect the at-risk store "
-                    f"(stockout probability={prob:.2f})."
-                ),
-                estimated_revenue_at_risk=revenue_at_risk,
-                estimated_intervention_cost=expected_transfer_cost,
-                estimated_net_benefit=net_benefit,
-                confidence=min(1.0, prob),
-                assumptions=[
-                    "Transfer arrives in 1 business day.",
-                    "Donor store continues to meet its own demand after the transfer.",
-                    "Unit price and cost taken from the product master.",
-                ],
-                constraints=[],
-                requires_approval=True,
-                risk_tier=_risk_tier_from(prob, net_benefit),
-            ))
+            drafts.append(
+                RecommendationDraft(
+                    recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
+                    exception_id=state.exception_id,
+                    action_type=ActionType.TRANSFER_INVENTORY.value,
+                    priority="HIGH" if prob >= 0.5 else "MEDIUM",
+                    affected_products=[state.product_id] if state.product_id else [],
+                    affected_stores=[state.store_id, donor["from_store_id"]]
+                    if state.store_id
+                    else [donor["from_store_id"]],
+                    supporting_evidence=supporting,
+                    business_rationale=(
+                        f"Transfer {move_units} units from store {donor.get('from_store_name', donor['from_store_id'])} "
+                        f"(donor DoS={donor.get('donor_days_of_supply')}) to protect the at-risk store "
+                        f"(stockout probability={prob:.2f})."
+                    ),
+                    estimated_revenue_at_risk=revenue_at_risk,
+                    estimated_intervention_cost=expected_transfer_cost,
+                    estimated_net_benefit=net_benefit,
+                    confidence=min(1.0, prob),
+                    assumptions=[
+                        "Transfer arrives in 1 business day.",
+                        "Donor store continues to meet its own demand after the transfer.",
+                        "Unit price and cost taken from the product master.",
+                    ],
+                    constraints=[],
+                    requires_approval=True,
+                    risk_tier=_risk_tier_from(prob, net_benefit),
+                )
+            )
         # Expedite recommendation if we have an open PO (deducible from inventory agent payload)
         expedite_cost = float(biz_entry.data.get("expected_expedite_cost", 0.0)) if biz_entry else 0.0
         if expedite_cost > 0:
             net = round(revenue_at_risk - expedite_cost, 2)
-            drafts.append(RecommendationDraft(
-                recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
-                exception_id=state.exception_id,
-                action_type=ActionType.EXPEDITE_PO.value,
-                priority="HIGH" if prob >= 0.5 else "MEDIUM",
-                affected_products=[state.product_id] if state.product_id else [],
-                affected_stores=[state.store_id] if state.store_id else [],
-                supporting_evidence=supporting,
-                business_rationale=(
-                    f"Expedite the open replenishment to compress supplier lead time. "
-                    f"Revenue at risk ≈ ${revenue_at_risk:.2f}; expedite ≈ ${expedite_cost:.2f}."
-                ),
-                estimated_revenue_at_risk=revenue_at_risk,
-                estimated_intervention_cost=expedite_cost,
-                estimated_net_benefit=net,
-                confidence=min(1.0, prob),
-                assumptions=["Expedite accelerates arrival by ~5 days at +15% unit cost."],
-                constraints=[],
-                requires_approval=True,
-                risk_tier=_risk_tier_from(prob, net),
-            ))
+            drafts.append(
+                RecommendationDraft(
+                    recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
+                    exception_id=state.exception_id,
+                    action_type=ActionType.EXPEDITE_PO.value,
+                    priority="HIGH" if prob >= 0.5 else "MEDIUM",
+                    affected_products=[state.product_id] if state.product_id else [],
+                    affected_stores=[state.store_id] if state.store_id else [],
+                    supporting_evidence=supporting,
+                    business_rationale=(
+                        f"Expedite the open replenishment to compress supplier lead time. "
+                        f"Revenue at risk ≈ ${revenue_at_risk:.2f}; expedite ≈ ${expedite_cost:.2f}."
+                    ),
+                    estimated_revenue_at_risk=revenue_at_risk,
+                    estimated_intervention_cost=expedite_cost,
+                    estimated_net_benefit=net,
+                    confidence=min(1.0, prob),
+                    assumptions=["Expedite accelerates arrival by ~5 days at +15% unit cost."],
+                    constraints=[],
+                    requires_approval=True,
+                    risk_tier=_risk_tier_from(prob, net),
+                )
+            )
     elif state.category in ("SUPPLIER_DELAY", "SUPPLIER_CAPACITY") and supp_entry:
         alts = alt_entry.data.get("alternatives", {}).get("alternatives", []) if alt_entry else []
         if alts:
             best = alts[0]
-            drafts.append(RecommendationDraft(
+            drafts.append(
+                RecommendationDraft(
+                    recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
+                    exception_id=state.exception_id,
+                    action_type=ActionType.SWITCH_SUPPLIER.value,
+                    priority="HIGH",
+                    affected_products=[state.product_id] if state.product_id else [],
+                    affected_stores=[],
+                    supporting_evidence=supporting,
+                    business_rationale=(
+                        f"Current supplier reliability flagged. Alt supplier {best['name']} offers "
+                        f"OTD {best['on_time_delivery_pct']:.2%} with {best['lead_time_days']}-day lead time."
+                    ),
+                    estimated_revenue_at_risk=revenue_at_risk,
+                    estimated_intervention_cost=0.0,
+                    estimated_net_benefit=revenue_at_risk,
+                    confidence=0.6,
+                    assumptions=[
+                        "Alt supplier capacity meets the required volume.",
+                        "Any ramp-up cost of switching is excluded from this estimate.",
+                    ],
+                    constraints=["Switch requires procurement approval."],
+                    requires_approval=True,
+                    risk_tier=RiskTier.HIGH.value,
+                )
+            )
+    elif state.category in ("EXCESS_INVENTORY", "AGING_INVENTORY"):
+        drafts.append(
+            RecommendationDraft(
                 recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
                 exception_id=state.exception_id,
-                action_type=ActionType.SWITCH_SUPPLIER.value,
-                priority="HIGH",
+                action_type=ActionType.REDUCE_REPLENISHMENT.value,
+                priority="MEDIUM",
                 affected_products=[state.product_id] if state.product_id else [],
-                affected_stores=[],
+                affected_stores=[state.store_id] if state.store_id else [],
                 supporting_evidence=supporting,
-                business_rationale=(
-                    f"Current supplier reliability flagged. Alt supplier {best['name']} offers "
-                    f"OTD {best['on_time_delivery_pct']:.2%} with {best['lead_time_days']}-day lead time."
-                ),
-                estimated_revenue_at_risk=revenue_at_risk,
+                business_rationale="Reduce next replenishment cycle to work down excess inventory and avoid shelf-life loss.",
+                estimated_revenue_at_risk=0.0,
                 estimated_intervention_cost=0.0,
-                estimated_net_benefit=revenue_at_risk,
+                estimated_net_benefit=max(0.0, revenue_at_risk),  # avoided waste
                 confidence=0.6,
-                assumptions=["Alt supplier capacity meets the required volume.",
-                             "Any ramp-up cost of switching is excluded from this estimate."],
-                constraints=["Switch requires procurement approval."],
+                assumptions=["Downstream demand is stable."],
+                constraints=[],
                 requires_approval=True,
-                risk_tier=RiskTier.HIGH.value,
-            ))
-    elif state.category in ("EXCESS_INVENTORY", "AGING_INVENTORY"):
-        drafts.append(RecommendationDraft(
-            recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
-            exception_id=state.exception_id,
-            action_type=ActionType.REDUCE_REPLENISHMENT.value,
-            priority="MEDIUM",
-            affected_products=[state.product_id] if state.product_id else [],
-            affected_stores=[state.store_id] if state.store_id else [],
-            supporting_evidence=supporting,
-            business_rationale="Reduce next replenishment cycle to work down excess inventory and avoid shelf-life loss.",
-            estimated_revenue_at_risk=0.0,
-            estimated_intervention_cost=0.0,
-            estimated_net_benefit=max(0.0, revenue_at_risk),  # avoided waste
-            confidence=0.6,
-            assumptions=["Downstream demand is stable."],
-            constraints=[],
-            requires_approval=True,
-            risk_tier=RiskTier.LOW.value,
-        ))
+                risk_tier=RiskTier.LOW.value,
+            )
+        )
     else:
         # Fallback: a MONITOR recommendation that always meets the schema
-        drafts.append(RecommendationDraft(
-            recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
-            exception_id=state.exception_id,
-            action_type=ActionType.MONITOR.value,
-            priority="LOW",
-            affected_products=[state.product_id] if state.product_id else [],
-            affected_stores=[state.store_id] if state.store_id else [],
-            supporting_evidence=supporting,
-            business_rationale="Signal recorded; continue monitoring. No consequential action proposed.",
-            estimated_revenue_at_risk=revenue_at_risk,
-            estimated_intervention_cost=0.0,
-            estimated_net_benefit=0.0,
-            confidence=0.3,
-            assumptions=["No intervention needed at this time."],
-            constraints=[],
-            requires_approval=False,
-            risk_tier=RiskTier.INFORMATIONAL.value,
-        ))
+        drafts.append(
+            RecommendationDraft(
+                recommendation_id=f"REC-{uuid.uuid4().hex[:10].upper()}",
+                exception_id=state.exception_id,
+                action_type=ActionType.MONITOR.value,
+                priority="LOW",
+                affected_products=[state.product_id] if state.product_id else [],
+                affected_stores=[state.store_id] if state.store_id else [],
+                supporting_evidence=supporting,
+                business_rationale="Signal recorded; continue monitoring. No consequential action proposed.",
+                estimated_revenue_at_risk=revenue_at_risk,
+                estimated_intervention_cost=0.0,
+                estimated_net_benefit=0.0,
+                confidence=0.3,
+                assumptions=["No intervention needed at this time."],
+                constraints=[],
+                requires_approval=False,
+                risk_tier=RiskTier.INFORMATIONAL.value,
+            )
+        )
 
     return _rank_recommendations(drafts)
 
@@ -278,20 +306,21 @@ def investigate(
     )
     run_id = f"RUN-{uuid.uuid4().hex[:12].upper()}"
     run = orm.AgentRun(
-        run_id=run_id, exception_id=state.exception_id,
-        provider=llm.name, model=llm.model, status="RUNNING",
+        run_id=run_id,
+        exception_id=state.exception_id,
+        provider=llm.name,
+        model=llm.model,
+        status="RUNNING",
         steps=[],
     )
     session.add(run)
     session.flush()
 
-    step_count = 0
-    for node in state.agents_to_run:
+    for step_count, node in enumerate(state.agents_to_run):
         if step_count >= settings.agent_max_steps:
             state.error = f"max_steps_exceeded ({settings.agent_max_steps})"
             break
         state = _run_node(node, session, llm, state, settings.agent_step_timeout_seconds)
-        step_count += 1
         if checkpoint:
             checkpoint(state)
     # Draft recommendations
@@ -303,7 +332,7 @@ def investigate(
 
     # Persist run summary
     run.status = "FAILED" if state.error else "SUCCEEDED"
-    run.finished_at = datetime.now(timezone.utc)
+    run.finished_at = datetime.now(UTC)
     run.steps = [s.model_dump(mode="json") for s in state.steps]
     run.tokens_in = state.tokens_in
     run.tokens_out = state.tokens_out

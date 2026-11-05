@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Agent evaluation: routing, evidence completeness, recommendation schema, safe failure."""
+
 from __future__ import annotations
 
 import tempfile
@@ -7,15 +8,23 @@ from pathlib import Path
 
 import pytest
 
-from app.orchestration.supervisor import _draft_recommendations, _route
+from app.orchestration.supervisor import _route
 
 
 @pytest.fixture(scope="module")
 def seeded_small():
     """Load a minimal synthetic set for module-scoped tests."""
     from app.core.db import init_db
-    from app.data.generate import GenParams, _rand, gen_products, gen_stores, gen_suppliers, gen_sales_and_inventory_and_events
+    from app.data.generate import (
+        GenParams,
+        _rand,
+        gen_products,
+        gen_sales_and_inventory_and_events,
+        gen_stores,
+        gen_suppliers,
+    )
     from app.data.load import load_all
+
     init_db()
     tmp = Path(tempfile.mkdtemp(prefix="ct-agents-"))
     p = GenParams(seed=11, days=60, n_products=5, n_stores=2, n_suppliers=3)
@@ -25,15 +34,23 @@ def seeded_small():
     suppliers, sup_products = gen_suppliers(p, r, products)
     frames = gen_sales_and_inventory_and_events(p, r, npr, products, stores, suppliers, sup_products)
     import csv
+
     def _w(name, rows):
-        if not rows: return
+        if not rows:
+            return
         with (tmp / f"{name}.csv").open("w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-            w.writeheader(); [w.writerow(r) for r in rows]
-    _w("products", products); _w("stores", stores); _w("suppliers", suppliers)
+            w.writeheader()
+            [w.writerow(r) for r in rows]
+
+    _w("products", products)
+    _w("stores", stores)
+    _w("suppliers", suppliers)
     _w("supplier_products", sup_products)
-    _w("sales", frames["sales"]); _w("inventory", frames["inventory"])
-    _w("purchase_orders", frames["pos"]); _w("store_transfers", frames["transfers"])
+    _w("sales", frames["sales"])
+    _w("inventory", frames["inventory"])
+    _w("purchase_orders", frames["pos"])
+    _w("store_transfers", frames["transfers"])
     _w("promotions", frames["promos"])
     load_all(tmp, wipe=True)
     return tmp
@@ -53,9 +70,7 @@ def test_routing_by_category():
 
 
 def test_investigation_produces_valid_recommendation(seeded_small):
-    from sqlalchemy import select
     from app.core.db import session_scope
-    from app.models import orm
     from app.orchestration.supervisor import investigate
     from app.services.exceptions_engine import detect_all
 
@@ -70,25 +85,41 @@ def test_investigation_produces_valid_recommendation(seeded_small):
         assert "business_impact_agent" in sources
         # Every recommendation adheres to the required shape
         for r in state.recommendations:
-            for key in ("recommendation_id", "exception_id", "action_type", "priority",
-                        "affected_products", "affected_stores", "supporting_evidence",
-                        "business_rationale", "estimated_revenue_at_risk",
-                        "estimated_intervention_cost", "estimated_net_benefit",
-                        "confidence", "assumptions", "constraints", "requires_approval", "risk_tier"):
+            for key in (
+                "recommendation_id",
+                "exception_id",
+                "action_type",
+                "priority",
+                "affected_products",
+                "affected_stores",
+                "supporting_evidence",
+                "business_rationale",
+                "estimated_revenue_at_risk",
+                "estimated_intervention_cost",
+                "estimated_net_benefit",
+                "confidence",
+                "assumptions",
+                "constraints",
+                "requires_approval",
+                "risk_tier",
+            ):
                 assert key in r
             assert 0.0 <= r["confidence"] <= 1.0
 
 
 def test_agent_fallback_when_no_product_store():
     """If the exception lacks product/store, specialists must not crash — they must return 'skipped'."""
+    from app.agents.llm import MockLLM
     from app.agents.specialists import demand_agent, inventory_agent
     from app.agents.state import AgentState
-    from app.agents.llm import MockLLM
     from app.core.db import session_scope
 
     state = AgentState(
-        exception_id="EXC-X", category="SALES_ANOMALY",
-        product_id=None, store_id=None, supplier_id=None,
+        exception_id="EXC-X",
+        category="SALES_ANOMALY",
+        product_id=None,
+        store_id=None,
+        supplier_id=None,
         agents_to_run=["demand_agent"],
     )
     with session_scope() as s:

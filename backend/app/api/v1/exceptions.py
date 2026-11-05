@@ -1,8 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 from __future__ import annotations
 
-from typing import Annotated
-
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -12,7 +10,7 @@ from app.events.bus import publish
 from app.models import orm
 from app.orchestration.supervisor import investigate
 from app.schemas.common import ExceptionOut, RecommendationOut
-from app.security.auth import current_user, User
+from app.security.auth import User, current_user
 from app.security.rate_limit import rate_limited
 from app.services.exceptions_engine import detect_all
 
@@ -49,7 +47,11 @@ def list_exceptions(
     if min_risk is not None:
         stmt = stmt.where(orm.Exception_.risk_score >= min_risk)
     total = session.scalar(select(func.count()).select_from(stmt.subquery())) or 0
-    stmt = stmt.order_by(orm.Exception_.risk_score.desc(), orm.Exception_.detected_at.desc()).offset(offset).limit(limit)
+    stmt = (
+        stmt.order_by(orm.Exception_.risk_score.desc(), orm.Exception_.detected_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     rows = session.execute(stmt).scalars().all()
     return {
         "page": {"total": int(total), "offset": offset, "limit": limit},
@@ -58,7 +60,9 @@ def list_exceptions(
 
 
 @router.get("/{exception_id}", response_model=ExceptionOut)
-def get_exception(exception_id: str, session: Session = Depends(get_session), user: User = Depends(current_user)) -> ExceptionOut:
+def get_exception(
+    exception_id: str, session: Session = Depends(get_session), user: User = Depends(current_user)
+) -> ExceptionOut:
     row = session.get(orm.Exception_, exception_id)
     if not row:
         raise HTTPException(status_code=404, detail="Exception not found")
@@ -72,14 +76,20 @@ def run_detection(
 ) -> dict:
     created = detect_all(session)
     for exc in created:
-        publish(session, event_type="StockoutRiskDetected" if exc.category == "STOCKOUT_RISK" else exc.category,
-                payload={"exception_id": exc.exception_id, "category": exc.category, "risk_score": exc.risk_score})
+        publish(
+            session,
+            event_type="StockoutRiskDetected" if exc.category == "STOCKOUT_RISK" else exc.category,
+            payload={
+                "exception_id": exc.exception_id,
+                "category": exc.category,
+                "risk_score": exc.risk_score,
+            },
+        )
     session.commit()
     return {"created": len(created), "exception_ids": [e.exception_id for e in created]}
 
 
-@router.post("/{exception_id}/investigate",
-             dependencies=[Depends(rate_limited(limit_per_minute=60))])
+@router.post("/{exception_id}/investigate", dependencies=[Depends(rate_limited(limit_per_minute=60))])
 def investigate_exception(
     exception_id: str,
     session: Session = Depends(get_session),
@@ -91,10 +101,15 @@ def investigate_exception(
     state = investigate(session, row)
     session.commit()
     # Load created recommendations to return
-    recs = session.execute(
-        select(orm.Recommendation).where(orm.Recommendation.exception_id == exception_id)
-        .order_by(orm.Recommendation.created_at.desc())
-    ).scalars().all()
+    recs = (
+        session.execute(
+            select(orm.Recommendation)
+            .where(orm.Recommendation.exception_id == exception_id)
+            .order_by(orm.Recommendation.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
     return {
         "exception_id": exception_id,
         "run": {

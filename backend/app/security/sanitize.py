@@ -1,5 +1,6 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Prompt-injection defenses and tool-argument validation for LLM inputs."""
+
 from __future__ import annotations
 
 import re
@@ -58,4 +59,4 @@ def validate_tool_call(tool: str, args: dict[str, Any]) -> dict[str, Any]:
     extra = set(args.keys()) - allowed
     if extra:
         raise ValueError(f"Tool {tool!r} received unexpected args: {sorted(extra)}")
-    return {k: args[k] for k in args.keys() if k in allowed}
+    return {k: args[k] for k in args if k in allowed}

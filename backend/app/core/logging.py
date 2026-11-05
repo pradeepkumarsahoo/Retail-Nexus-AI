@@ -1,9 +1,11 @@
 # Author: Pradeep Sahoo — Retail Nexus AI
 """Structured JSON logging."""
+
 from __future__ import annotations
 
 import logging
 import sys
+
 import structlog
 
 from .config import get_settings

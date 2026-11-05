@@ -3,25 +3,25 @@
 
 Pure functions over pandas frames. No DB access.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import timedelta
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 
 @dataclass(frozen=True)
 class DemandFeatures:
-    history: pd.DataFrame      # daily sales for one (product, store)
+    history: pd.DataFrame  # daily sales for one (product, store)
     recent_sales_7: float
     recent_sales_14: float
     recent_sales_28: float
     mean_daily: float
     std_daily: float
-    cv_daily: float            # coefficient of variation
+    cv_daily: float  # coefficient of variation
     weekday_profile: list[float]
     season_strength: float
     promotion_days_14: int
@@ -33,9 +33,11 @@ def product_store_daily(sales: pd.DataFrame, product_id: str, store_id: str) -> 
     if df.empty:
         return pd.DataFrame(columns=["units_sold", "revenue", "promotion"]).rename_axis("sale_date")
     df["sale_date"] = pd.to_datetime(df["sale_date"]).dt.date
-    daily = df.groupby("sale_date").agg(units_sold=("units_sold", "sum"),
-                                        revenue=("revenue", "sum"),
-                                        promotion=("promotion", "max")).sort_index()
+    daily = (
+        df.groupby("sale_date")
+        .agg(units_sold=("units_sold", "sum"), revenue=("revenue", "sum"), promotion=("promotion", "max"))
+        .sort_index()
+    )
     full_idx = pd.date_range(start=min(daily.index), end=max(daily.index), freq="D").date
     daily = daily.reindex(full_idx).fillna({"units_sold": 0, "revenue": 0.0, "promotion": False})
     daily.index.name = "sale_date"
@@ -45,21 +47,32 @@ def product_store_daily(sales: pd.DataFrame, product_id: str, store_id: str) -> 
 def demand_features(hist: pd.DataFrame) -> DemandFeatures:
     if hist.empty:
         return DemandFeatures(
-            history=hist, recent_sales_7=0.0, recent_sales_14=0.0, recent_sales_28=0.0,
-            mean_daily=0.0, std_daily=0.0, cv_daily=0.0,
-            weekday_profile=[0.0] * 7, season_strength=0.0, promotion_days_14=0,
+            history=hist,
+            recent_sales_7=0.0,
+            recent_sales_14=0.0,
+            recent_sales_28=0.0,
+            mean_daily=0.0,
+            std_daily=0.0,
+            cv_daily=0.0,
+            weekday_profile=[0.0] * 7,
+            season_strength=0.0,
+            promotion_days_14=0,
         )
     units = hist["units_sold"].astype(float)
     last_date = hist.index.max()
+
     def _window(days: int) -> float:
         start = last_date - timedelta(days=days - 1)
         return float(units.loc[units.index >= start].sum())
+
     mean_daily = float(units.mean())
     std_daily = float(units.std(ddof=0)) if len(units) > 1 else 0.0
     cv = std_daily / mean_daily if mean_daily > 0 else 0.0
     # weekday profile
     dow = pd.Series(units.index).map(lambda d: pd.Timestamp(d).weekday()).to_numpy()
-    weekday_profile = [float(units.to_numpy()[dow == i].mean()) if (dow == i).any() else 0.0 for i in range(7)]
+    weekday_profile = [
+        float(units.to_numpy()[dow == i].mean()) if (dow == i).any() else 0.0 for i in range(7)
+    ]
     # season strength = std of weekly mean / overall mean
     if mean_daily > 0 and len(units) >= 14:
         weekly = units.rolling(7, min_periods=7).mean().dropna()
@@ -101,11 +114,24 @@ def days_of_supply(on_hand: float, mean_daily_demand: float) -> float:
 
 
 def supplier_delivery_stats(pos: pd.DataFrame, supplier_id: str) -> dict[str, Any]:
+    if pos.empty or "supplier_id" not in pos.columns:
+        return {
+            "supplier_id": supplier_id,
+            "on_time_delivery_pct": 0.0,
+            "avg_lead_time_days": 0.0,
+            "lead_time_variance": 0.0,
+            "late_po_count": 0,
+            "total_po_count": 0,
+        }
     sub = pos[pos["supplier_id"] == supplier_id].copy()
     if sub.empty:
         return {
-            "supplier_id": supplier_id, "on_time_delivery_pct": 0.0, "avg_lead_time_days": 0.0,
-            "lead_time_variance": 0.0, "late_po_count": 0, "total_po_count": 0,
+            "supplier_id": supplier_id,
+            "on_time_delivery_pct": 0.0,
+            "avg_lead_time_days": 0.0,
+            "lead_time_variance": 0.0,
+            "late_po_count": 0,
+            "total_po_count": 0,
         }
     sub["expected_delivery_date"] = pd.to_datetime(sub["expected_delivery_date"])
     sub["order_date"] = pd.to_datetime(sub["order_date"])
