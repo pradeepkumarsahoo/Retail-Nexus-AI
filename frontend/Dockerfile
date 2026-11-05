@@ -2,14 +2,14 @@
 # syntax=docker/dockerfile:1.7
 
 # ---------- Stage 1: dependencies ----------
-FROM node:20-alpine AS deps
+FROM node:26-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN --mount=type=cache,target=/root/.npm \
     if [ -f package-lock.json ]; then npm ci; else npm install --no-audit --no-fund; fi
 
 # ---------- Stage 2: build ----------
-FROM node:20-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -40,7 +40,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 CMD ["nginx", "-g", "daemon off;"]
 
 # ---------- Stage 4: dev runtime (Vite) ----------
-FROM node:20-alpine AS dev
+FROM node:26-alpine AS dev
 WORKDIR /app
 RUN addgroup -S -g 1001 app \
  && adduser -S -u 1001 -G app app \
