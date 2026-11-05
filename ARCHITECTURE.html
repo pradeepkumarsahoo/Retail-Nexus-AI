@@ -1,0 +1,2218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="author" content="Pradeep Sahoo" />
+<title>Retail Nexus AI — Architecture</title>
+<style>
+  :root {
+    --bg: #070b16;
+    --bg-2: #0b1222;
+    --panel: #10172a;
+    --panel-2: #141d36;
+    --ink: #e7edf9;
+    --ink-dim: #a9b4c7;
+    --muted: #7a869d;
+    --line: #1f2947;
+    --line-strong: #2b3a62;
+    --accent: #22d3ee;
+    --accent-2: #60a5fa;
+    --accent-3: #a78bfa;
+    --warn: #f59e0b;
+    --crit: #ef4444;
+    --ok: #10b981;
+    --radius: 14px;
+    --shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 20px 40px -24px rgba(0,0,0,0.6);
+  }
+  :root:not([data-theme="light"]) { color-scheme: dark; }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f7f9fc;
+      --bg-2: #eef2f9;
+      --panel: #ffffff;
+      --panel-2: #f3f6fb;
+      --ink: #0b1220;
+      --ink-dim: #334155;
+      --muted: #64748b;
+      --line: #e2e8f0;
+      --line-strong: #cbd5e1;
+      --accent: #0891b2;
+      --accent-2: #2563eb;
+      --accent-3: #7c3aed;
+      --shadow: 0 1px 0 rgba(0,0,0,0.02) inset, 0 12px 28px -22px rgba(15,23,42,0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #070b16; --bg-2: #0b1222; --panel: #10172a; --panel-2: #141d36;
+    --ink: #e7edf9; --ink-dim: #a9b4c7; --muted: #7a869d;
+    --line: #1f2947; --line-strong: #2b3a62;
+    --accent: #22d3ee; --accent-2: #60a5fa; --accent-3: #a78bfa;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; }
+  a { color: var(--accent-2); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(1200px 500px at 85% -10%, rgba(34,211,238,0.10), transparent 60%),
+      radial-gradient(900px 500px at 5% 10%, rgba(96,165,250,0.08), transparent 60%),
+      radial-gradient(800px 400px at 60% 110%, rgba(167,139,250,0.06), transparent 60%);
+    z-index: 0;
+  }
+  main, header, footer { position: relative; z-index: 1; }
+
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 0 20px; }
+
+  /* Nav */
+  .nav {
+    position: sticky; top: 0; z-index: 10;
+    backdrop-filter: saturate(140%) blur(8px);
+    background: color-mix(in oklab, var(--bg) 70%, transparent);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav-inner { display: flex; align-items: center; gap: 14px; padding: 10px 0; flex-wrap: wrap; }
+  .brand { display: inline-flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: -0.01em; }
+  .logo {
+    width: 24px; height: 24px; border-radius: 7px;
+    background: conic-gradient(from 210deg, var(--accent), var(--accent-2), var(--accent-3), var(--accent));
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.08) inset;
+  }
+  .tag {
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--ink-dim);
+    border: 1px solid var(--line-strong);
+    background: var(--panel-2);
+    padding: 2px 8px; border-radius: 999px;
+  }
+  .links { margin-left: auto; display: flex; gap: 4px; flex-wrap: wrap; }
+  .links a {
+    color: var(--ink-dim); font-size: 13px;
+    padding: 6px 10px; border-radius: 8px;
+  }
+  .links a:hover { background: var(--panel); color: var(--ink); text-decoration: none; }
+
+  /* Hero */
+  .hero { padding: 52px 0 18px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 14px;
+  }
+  .eyebrow::before {
+    content: ""; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); box-shadow: 0 0 0 4px rgba(34,211,238,0.15);
+  }
+  h1 {
+    font-size: clamp(28px, 4.5vw, 44px);
+    line-height: 1.08; letter-spacing: -0.02em;
+    margin: 0 0 14px; font-weight: 700;
+  }
+  h1 .grad {
+    background: linear-gradient(90deg, var(--accent), var(--accent-2) 55%, var(--accent-3));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .lede { max-width: 820px; color: var(--ink-dim); font-size: 16.5px; line-height: 1.55; margin: 0 0 20px; }
+  .hero-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+  .chip {
+    font-size: 12px; color: var(--ink);
+    border: 1px solid var(--line-strong);
+    background: var(--panel);
+    padding: 5px 10px; border-radius: 999px;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+  .chip.b .dot { background: var(--accent-2); }
+  .chip.c .dot { background: var(--accent-3); }
+  .chip.w .dot { background: var(--warn); }
+  .chip.o .dot { background: var(--ok); }
+
+  /* Byline / author card */
+  .byline {
+    display: grid; grid-template-columns: 56px 1fr auto; gap: 14px; align-items: center;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 16px; margin: 22px 0 0;
+    box-shadow: var(--shadow);
+  }
+  .avatar {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 18px; letter-spacing: 0.03em;
+    color: #0b1220;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,0.12);
+  }
+  .by-name { font-weight: 700; font-size: 16px; color: var(--ink); }
+  .by-role { font-size: 13px; color: var(--ink-dim); }
+  .by-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .bbadge {
+    font-size: 11px; color: var(--ink-dim);
+    border: 1px solid var(--line-strong);
+    background: color-mix(in oklab, var(--accent-2) 10%, transparent);
+    padding: 3px 8px; border-radius: 999px;
+    letter-spacing: 0.02em;
+  }
+
+  /* Section */
+  section { padding: 22px 0; }
+  h2 {
+    font-size: 22px; letter-spacing: -0.01em;
+    margin: 10px 0 14px;
+    display: flex; align-items: baseline; gap: 10px;
+  }
+  h2 .n {
+    font-size: 11px; color: var(--accent); letter-spacing: 0.14em; text-transform: uppercase;
+    border: 1px solid color-mix(in oklab, var(--accent) 40%, transparent);
+    background: color-mix(in oklab, var(--accent) 12%, transparent);
+    border-radius: 999px; padding: 2px 8px;
+  }
+  h3 { font-size: 15px; margin: 18px 0 8px; color: var(--ink); }
+  p, li { color: var(--ink-dim); line-height: 1.6; }
+  .sub { color: var(--muted); font-size: 13.5px; margin: -4px 0 14px; }
+
+  /* Narrative two-column block */
+  .narr {
+    display: grid; gap: 14px; grid-template-columns: 1fr 1fr;
+  }
+  @media (max-width: 900px) { .narr { grid-template-columns: 1fr; } }
+  .narr .card { min-height: 100%; }
+  .narr .list { margin: 8px 0 0; padding-left: 18px; }
+  .narr .list li { margin: 4px 0; }
+
+  /* Cards */
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px 14px 12px;
+    box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .card::after {
+    content: ""; position: absolute; top: 0; left: 14px; right: 14px; height: 1px;
+    background: linear-gradient(90deg, transparent, color-mix(in oklab, var(--accent) 35%, transparent), transparent);
+    opacity: 0.4;
+  }
+  .card h4 { margin: 0 0 6px; font-size: 14px; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .card p { margin: 0; font-size: 13px; color: var(--ink-dim); }
+  .card .num { font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; color: var(--accent); font-size: 12px; opacity: 0.85; }
+  .card ul { margin: 6px 0 0; padding-left: 18px; }
+  .card li { font-size: 13px; }
+
+  /* Flow strip */
+  .flow {
+    display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px;
+    margin: 6px 0 0;
+  }
+  @media (max-width: 900px) { .flow { grid-template-columns: repeat(2, 1fr); } }
+  .step {
+    position: relative;
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px;
+  }
+  .step .k {
+    font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 4px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .step h5 { margin: 0 0 3px; font-size: 14px; color: var(--ink); }
+  .step p { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
+
+  /* Decision block */
+  .adr {
+    display: grid; grid-template-columns: 1fr; gap: 10px;
+  }
+  .adr .row {
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 12px 14px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    display: grid; grid-template-columns: 1.6fr 2fr 2fr; gap: 14px;
+  }
+  @media (max-width: 900px) { .adr .row { grid-template-columns: 1fr; } }
+  .adr .decision { color: var(--ink); font-weight: 600; font-size: 14px; }
+  .adr .decision .reject { color: var(--muted); font-weight: 500; font-size: 12.5px; display: block; margin-top: 4px; }
+  .adr .why, .adr .tradeoff { color: var(--ink-dim); font-size: 13px; }
+  .adr .why strong, .adr .tradeoff strong { color: var(--ink); }
+
+  /* Diagram wrappers */
+  .diagram {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: var(--shadow);
+  }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; color: var(--muted); font-size: 12px; }
+  .legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
+  thead th {
+    text-align: left; padding: 10px 12px;
+    color: var(--muted); font-weight: 600;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    border-bottom: 1px solid var(--line);
+    background: color-mix(in oklab, var(--panel-2) 75%, transparent);
+  }
+  tbody td {
+    padding: 10px 12px; border-bottom: 1px solid var(--line);
+    color: var(--ink);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: color-mix(in oklab, var(--panel-2) 50%, transparent); }
+  code { background: var(--panel-2); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; font-size: 12.5px; }
+
+  svg { width: 100%; height: auto; display: block; }
+
+  /* Scale & cost */
+  .stat-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+  .stat {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px 14px 12px;
+    box-shadow: var(--shadow);
+    position: relative; overflow: hidden;
+  }
+  .stat::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent-2));
+    opacity: 0.85;
+  }
+  .stat .k { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .stat .v {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 22px; font-weight: 700; color: var(--ink); letter-spacing: -0.01em;
+  }
+  .stat .u { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+  .stat.alt::before { background: linear-gradient(180deg, var(--accent-3), var(--accent-2)); }
+  .stat.warn::before { background: linear-gradient(180deg, var(--warn), var(--accent-3)); }
+  .stat.ok::before { background: linear-gradient(180deg, var(--ok), var(--accent)); }
+
+  .total-card {
+    margin-top: 14px;
+    background: linear-gradient(135deg,
+      color-mix(in oklab, var(--accent) 12%, var(--panel)),
+      color-mix(in oklab, var(--accent-3) 10%, var(--panel-2)));
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 16px; align-items: center;
+    box-shadow: var(--shadow);
+  }
+  @media (max-width: 800px) { .total-card { grid-template-columns: 1fr; } }
+  .total-card .label { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .total-card .big {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 30px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2) 55%, var(--accent-3));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .total-card .sub2 { font-size: 13px; color: var(--ink-dim); margin-top: 2px; }
+
+  .cost-tbl td.num, .cost-tbl th.num { font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; text-align: right; }
+  .cost-tbl tfoot td { font-weight: 700; color: var(--ink); border-top: 1px solid var(--line-strong); background: color-mix(in oklab, var(--panel-2) 60%, transparent); }
+
+  /* Business impact */
+  .impact-hero {
+    background:
+      radial-gradient(600px 240px at 90% 0%, color-mix(in oklab, var(--ok) 20%, transparent), transparent 70%),
+      linear-gradient(135deg,
+        color-mix(in oklab, var(--ok) 10%, var(--panel)),
+        color-mix(in oklab, var(--accent-2) 10%, var(--panel-2)));
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 16px; align-items: center;
+    box-shadow: var(--shadow);
+    margin-bottom: 14px;
+  }
+  @media (max-width: 1000px) { .impact-hero { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 600px)  { .impact-hero { grid-template-columns: 1fr; } }
+  .impact-hero .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .impact-hero .big {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--ok), var(--accent) 55%, var(--accent-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .impact-hero .sub2 { font-size: 12.5px; color: var(--ink-dim); margin-top: 2px; }
+
+  .lever-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+  .lever {
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 14px;
+    position: relative; overflow: hidden;
+    box-shadow: var(--shadow);
+  }
+  .lever::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: linear-gradient(180deg, var(--ok), var(--accent));
+  }
+  .lever h5 { margin: 0 0 4px; font-size: 14px; color: var(--ink); }
+  .lever .amt {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 20px; font-weight: 700; color: var(--ok); letter-spacing: -0.01em;
+  }
+  .lever p { margin: 6px 0 0; font-size: 12.5px; color: var(--ink-dim); }
+
+  .roi-callout {
+    margin-top: 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    padding: 18px 20px;
+    background: linear-gradient(135deg,
+      color-mix(in oklab, var(--accent-3) 12%, var(--panel)),
+      color-mix(in oklab, var(--accent) 10%, var(--panel-2)));
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 18px; align-items: center;
+    box-shadow: var(--shadow);
+  }
+  @media (max-width: 800px) { .roi-callout { grid-template-columns: 1fr; } }
+  .roi-callout .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+  .roi-callout .big {
+    font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+    font-size: 28px; font-weight: 700; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, var(--accent-3), var(--accent-2), var(--accent));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .roi-callout .sub2 { font-size: 12.5px; color: var(--ink-dim); margin-top: 2px; }
+
+  /* Maturity badges */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px;
+    border: 1px solid var(--line-strong);
+  }
+  .badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; }
+  .badge.built    { color: var(--ok);      background: color-mix(in oklab, var(--ok) 12%, transparent);     border-color: color-mix(in oklab, var(--ok) 55%, transparent); }
+  .badge.built::before    { background: var(--ok); }
+  .badge.sim      { color: var(--accent-2);background: color-mix(in oklab, var(--accent-2) 12%, transparent);border-color: color-mix(in oklab, var(--accent-2) 55%, transparent); }
+  .badge.sim::before      { background: var(--accent-2); }
+  .badge.planned  { color: var(--warn);    background: color-mix(in oklab, var(--warn) 12%, transparent);   border-color: color-mix(in oklab, var(--warn) 55%, transparent); }
+  .badge.planned::before  { background: var(--warn); }
+  .badge.notbuilt { color: var(--crit);    background: color-mix(in oklab, var(--crit) 10%, transparent);   border-color: color-mix(in oklab, var(--crit) 55%, transparent); }
+  .badge.notbuilt::before { background: var(--crit); }
+  .badge.modelled { color: var(--accent-3);background: color-mix(in oklab, var(--accent-3) 12%, transparent);border-color: color-mix(in oklab, var(--accent-3) 55%, transparent); }
+  .badge.modelled::before { background: var(--accent-3); }
+
+  /* Roadmap */
+  .roadmap { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  @media (max-width: 900px) { .roadmap { grid-template-columns: 1fr; } }
+  .phase {
+    position: relative;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    padding: 14px; box-shadow: var(--shadow);
+  }
+  .phase::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2), var(--accent-3));
+    border-top-left-radius: 12px; border-top-right-radius: 12px;
+  }
+  .phase .p { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+  .phase h5 { margin: 0 0 6px; font-size: 14px; color: var(--ink); }
+  .phase p  { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
+  .phase ul { margin: 6px 0 0; padding-left: 16px; }
+  .phase li { font-size: 12px; margin: 2px 0; }
+
+  /* KPI dashboard tiles */
+  .kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
+  .kpi {
+    border: 1px solid var(--line); border-radius: 12px;
+    background: linear-gradient(180deg, var(--panel), var(--panel-2));
+    padding: 14px; box-shadow: var(--shadow);
+  }
+  .kpi .nm { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+  .kpi .row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .kpi .row > div .lbl { font-size: 10.5px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .kpi .row > div .vv  { font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; font-size: 15px; color: var(--ink); font-weight: 700; }
+
+  /* Executive summary strip */
+  .exec {
+    background:
+      radial-gradient(600px 240px at 0% 0%, color-mix(in oklab, var(--accent) 18%, transparent), transparent 70%),
+      radial-gradient(600px 240px at 100% 100%, color-mix(in oklab, var(--accent-3) 18%, transparent), transparent 70%),
+      linear-gradient(180deg, var(--panel), var(--panel-2));
+    border: 1px solid var(--line-strong); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow);
+  }
+  .exec-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  @media (max-width: 900px) { .exec-grid { grid-template-columns: 1fr; } }
+  .exec-grid .cell h5 { margin: 0 0 6px; font-size: 13px; color: var(--ink); letter-spacing: 0.02em; }
+  .exec-grid .cell p  { margin: 0; font-size: 12.5px; color: var(--ink-dim); }
+  .exec-grid .cell .k { font-size: 10.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 3px; }
+
+  /* Footer */
+  footer { padding: 36px 0 60px; border-top: 1px solid var(--line); margin-top: 32px; }
+  .foot-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 20px; }
+  @media (max-width: 800px) { .foot-grid { grid-template-columns: 1fr; } }
+  .mut { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="wrap nav-inner">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <span>Retail Nexus AI</span>
+    </div>
+    <span class="tag">synthetic dataset · demo build</span>
+    <div class="links" aria-label="Section links">
+      <a href="#exec">Executive summary</a>
+      <a href="#problem">Problem</a>
+      <a href="#solution">Solution</a>
+      <a href="#why">Business value</a>
+      <a href="#flow">Flow</a>
+      <a href="#agents">Agents</a>
+      <a href="#security">Security</a>
+      <a href="#judgement">Engineering judgement</a>
+      <a href="#scale">Scale &amp; cost</a>
+      <a href="#impact">Business impact</a>
+      <a href="#operating">Operating model</a>
+      <a href="#eval">AI evaluation</a>
+      <a href="#reliability">Reliability</a>
+      <a href="#kpi">KPI dashboard</a>
+      <a href="#governance">Governance</a>
+      <a href="#roadmap">Roadmap</a>
+      <a href="#author">Author</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Retail Nexus AI · Enterprise Agentic Retail Intelligence</span>
+    <h1><span class="grad">Retail Nexus AI</span> — an enterprise Agentic AI platform for retail intelligence.</h1>
+    <p class="lede">
+      Built for retailers, wholesalers and distribution operators. The platform
+      ingests product, store, supplier, inventory and demand data from across the
+      retail ecosystem — then detects exceptions, investigates them with specialised
+      agents, predicts stockouts and supplier delays, simulates corrective actions,
+      and routes consequential decisions through human approval. Every recommendation
+      is evidence-backed and reversible.
+    </p>
+
+    <!-- Author byline -->
+    <div class="byline" id="author">
+      <div class="avatar" aria-hidden="true">PS</div>
+      <div>
+        <div class="by-name">Pradeep Sahoo</div>
+        <div class="by-role">
+          AI Engineering &amp; Platform Architect — designed and built an <strong>enterprise-scale
+          retail supply-chain reference implementation</strong>, covering predictive ML, multi-agent
+          orchestration, decision intelligence, event-driven architecture, security,
+          governance and operational dashboards. Personally accountable for architecture,
+          technical implementation, engineering trade-offs and business-value modelling.
+          <em>Reference build on a synthetic dataset — see §00 for maturity labels.</em>
+        </div>
+        <div class="by-badges" style="margin-top:8px">
+          <span class="bbadge">Retail · Supply Chain</span>
+          <span class="bbadge">Agentic AI · LLM Systems</span>
+          <span class="bbadge">Predictive ML</span>
+          <span class="bbadge">Cloud / AWS Reference</span>
+          <span class="bbadge">Enterprise Security &amp; HITL</span>
+          <span class="bbadge">Observability</span>
+        </div>
+      </div>
+      <div class="bbadge">v0.1.0 · 2026-11-04</div>
+    </div>
+
+    <div class="hero-chips">
+      <span class="chip"><span class="dot"></span>100 products · 20 stores · 10 suppliers</span>
+      <span class="chip b"><span class="dot"></span>Predictive ML + deterministic engines</span>
+      <span class="chip c"><span class="dot"></span>Typed multi-agent workflow</span>
+      <span class="chip o"><span class="dot"></span>Human-in-the-loop governance</span>
+      <span class="chip c"><span class="dot"></span>OWASP Top 7 LLM threat guard per agent</span>
+      <span class="chip b"><span class="dot"></span>Sized for 10k suppliers · 5k stores · 100k customers/day</span>
+      <span class="chip o"><span class="dot"></span>Modelled $425-720M / yr value opportunity per Tier-1 retailer</span>
+      <span class="chip w"><span class="dot"></span>Mock LLM by default</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- ============ 00 Executive summary ============ -->
+  <section id="exec">
+    <h2><span class="n">00</span>Executive summary</h2>
+    <p class="sub">The 60-second version for a CTO or Director. Everything below this section is detail that supports these six points.</p>
+
+    <div class="exec">
+      <div class="exec-grid">
+        <div class="cell">
+          <div class="k">Business challenge</div>
+          <h5>~ $3-4 B / yr preventable loss inside one $50 B retailer</h5>
+          <p>Stockouts, late suppliers, excess inventory, slow decisions and opaque recommendations — none fixed by today's reporting stack. Benchmarks in §01.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Target operating model</div>
+          <h5>Agentic AI retail intelligence with human-in-the-loop governance</h5>
+          <p>Detect → predict → investigate → simulate → approve. Deterministic math; LLM only explains. Simulated execution — no ERP write in this build.</p>
+        </div>
+        <div class="cell">
+          <div class="k">AI platform capabilities</div>
+          <h5>4 predictive models · 6 specialist agents · OWASP Top 7 guard</h5>
+          <p>Forecast, stockout, anomaly and supplier-delay models; demand, inventory, supplier, alt-sourcing, business-impact and decision agents; per-agent threat guard.</p>
+        </div>
+      </div>
+      <div class="exec-grid" style="margin-top:14px">
+        <div class="cell">
+          <div class="k">Business value (modelled)</div>
+          <h5>$425 – 720 M / yr opportunity · ~ $660 K / yr run cost</h5>
+          <p><span class="badge modelled">Modelled</span> Internal deployment. $75-150 M year-5 ARR as SaaS. Unit economics $0.018 / decision vs $3-6 per avoided stockout.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Architecture principles</div>
+          <h5>Evidence-backed · reversible · auditable · defensible</h5>
+          <p>Every $-figure is deterministic; every action is role-gated; every call is tool-scoped; every decision carries evidence, assumptions and approver — the only posture a retail CFO will sign off on.</p>
+        </div>
+        <div class="cell">
+          <div class="k">Implementation maturity</div>
+          <h5>Reference build on a synthetic dataset</h5>
+          <p>
+            <span class="badge built">Built</span>
+            <span class="badge sim">Simulated</span>
+            <span class="badge modelled">Modelled</span>
+            <span class="badge planned">Planned</span>
+            — see the maturity key below for what each label covers.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:16px">Maturity key — what the labels mean on this page</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead><tr><th>Label</th><th>Meaning</th><th>Where it applies</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge built">Built</span></td>
+            <td>Working code in this repo, exercised by tests on the synthetic dataset.</td>
+            <td>Predictive ML, agents, event bus, exception engine, API, dashboards, security guard, OWASP checks.</td>
+          </tr>
+          <tr>
+            <td><span class="badge sim">Simulated</span></td>
+            <td>Feature is implemented against mock or simulated external systems; no real third-party integration.</td>
+            <td>Mock LLM default, simulated action adapter (no ERP write), synthetic dataset, no live supplier feeds.</td>
+          </tr>
+          <tr>
+            <td><span class="badge modelled">Modelled</span></td>
+            <td>Figure derived from public industry benchmarks applied to §11 scale assumptions. <em>Not a measured pilot outcome.</em></td>
+            <td>§01 cost-of-inaction, §03 value table, §11 cost tables, §12 revenue tables.</td>
+          </tr>
+          <tr>
+            <td><span class="badge planned">Planned</span></td>
+            <td>Documented design or target with concrete acceptance criteria, but not yet exercised.</td>
+            <td>Load-test matrix in §11, security attack matrix in §07, SLO targets in §15, phased roadmap in §18.</td>
+          </tr>
+          <tr>
+            <td><span class="badge notbuilt">Not built</span></td>
+            <td>Explicitly out of scope for this build. Called out so the gap is visible, not hidden.</td>
+            <td>Real ERP connector, multi-tenant isolation at the physical layer, continuous retraining pipelines.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 01 Problem ============ -->
+  <section id="problem">
+    <h2><span class="n">01</span>Problem statement</h2>
+    <p class="sub">A large retail operator loses the equivalent of a mid-cap company's annual revenue every year to five preventable supply-chain failures. The pain is well-measured in industry research — and almost none of it is addressed by today's reporting stack.</p>
+
+    <!-- Cost-of-inaction stat strip -->
+    <div class="stat-grid" style="margin-bottom:14px">
+      <div class="stat warn">
+        <div class="k">Global stockouts / yr</div>
+        <div class="v">$1.2 T</div>
+        <div class="u">IHL Group 2023 — lost retail sales worldwide</div>
+      </div>
+      <div class="stat warn">
+        <div class="k">Avg out-of-stock rate</div>
+        <div class="v">8 – 10 %</div>
+        <div class="u">NielsenIQ — fast-mover OOS on any given day</div>
+      </div>
+      <div class="stat warn">
+        <div class="k">Excess &amp; aging inventory</div>
+        <div class="v">20 – 30 %</div>
+        <div class="u">Of on-hand inventory at any time (Gartner retail)</div>
+      </div>
+      <div class="stat warn">
+        <div class="k">Detection → decision latency</div>
+        <div class="v">2 – 5 days</div>
+        <div class="u">Typical BI-driven workflow; window to act closes</div>
+      </div>
+    </div>
+
+    <div class="narr">
+      <div class="card">
+        <h4><span class="num">What is broken today</span></h4>
+        <p>Modern retail BI shows what <em>already happened</em> — yesterday's stockouts, last week's late trucks, last month's lost sales. The operator still cannot answer the actionable, forward-looking questions that move revenue:</p>
+        <ul class="list">
+          <li>Which products at which stores will stock out in the next <strong>7 / 14 / 30 days</strong>?</li>
+          <li>Which suppliers are statistically likely to deliver late — and which open POs are affected?</li>
+          <li>Which demand swings are real spikes to protect against vs. promotion aftershocks to ignore?</li>
+          <li>For a given exception, what is the <em>best</em> intervention, and what is its net benefit in dollars?</li>
+          <li>Who authorised the decision, on what evidence, under which assumptions?</li>
+        </ul>
+        <p style="margin-top:8px"><strong>The gap.</strong> Dashboards describe the past; planners manually translate them into actions through spreadsheets and email. At 100 k daily exceptions on a 5 k-store chain, that translation layer is the constraint — not detection.</p>
+      </div>
+      <div class="card">
+        <h4><span class="num">What it costs a $50 B retailer</span></h4>
+        <p>Applying the industry benchmarks above to a single Tier-1 operator at the scale in §11 (10 k suppliers · 5 k stores · 100 k customers/day):</p>
+        <ul class="list">
+          <li><strong>Stockouts</strong> — ~3 % of revenue leaks as lost sales ≈ <strong>$1.5 B / yr</strong>, plus unmeasured brand damage.</li>
+          <li><strong>Late deliveries</strong> — ad-hoc expedites, penalties and cascade ripples ≈ <strong>$150 – 300 M / yr</strong>.</li>
+          <li><strong>Excess &amp; aging inventory</strong> — $5 – 8 B of working capital tied up with its 25 % annual holding cost ≈ <strong>$1.25 – 2 B / yr</strong>.</li>
+          <li><strong>Slow decisions</strong> — detection-to-decision measured in days instead of minutes; the window to transfer, expedite or re-source closes before anyone acts.</li>
+          <li><strong>Opaque recommendations</strong> — operators cannot approve what they cannot audit; AI pilots stall at the trust boundary, not the modelling one.</li>
+        </ul>
+        <p style="margin-top:8px"><strong>Headline.</strong> ~<strong>$3 – 4 B / yr</strong> of preventable supply-chain loss sits inside one large retailer — 6 – 8 % of revenue. Every lever is measurable, which means every lever is addressable.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 02 Solution ============ -->
+  <section id="solution">
+    <h2><span class="n">02</span>Solution</h2>
+    <p class="sub">Retail Nexus AI — an enterprise Agentic AI platform that turns raw retail operational data into evidence-backed, approvable actions.</p>
+    <div class="grid">
+      <div class="card"><h4><span class="num">A</span>Detect proactively</h4>
+        <p>A unified exception engine sweeps across 11 categories (stockout risk, low DoS, supplier delay, demand spike / decline, excess, aging, replenishment mismatch, regional disruption, …) with a transparent 5-factor risk score.</p>
+      </div>
+      <div class="card"><h4><span class="num">B</span>Predict with calibrated ML</h4>
+        <p>Four separate predictive models — demand forecast, stockout, demand anomaly, supplier delay — each with an honest baseline (seasonal naive / 1-OTD / days-of-supply) before any gradient-boosted upgrade.</p>
+      </div>
+      <div class="card"><h4><span class="num">C</span>Investigate with agents</h4>
+        <p>Six specialists + supervisor on a typed state machine: Demand, Inventory, Supplier Risk, Alternative Sourcing, Business Impact, Decision Orchestrator. Deterministic engines compute every number; LLMs only explain.</p>
+      </div>
+      <div class="card"><h4><span class="num">D</span>Simulate interventions</h4>
+        <p>A deterministic what-if engine compares baseline vs expedite / transfer / switch-supplier / increase-replenishment under explicit formulas and labelled assumptions.</p>
+      </div>
+      <div class="card"><h4><span class="num">E</span>Govern consequential actions</h4>
+        <p>Role-based approval tiered by risk. Approve · Reject · Request-more-evidence with full audit trail. Agents never write to real enterprise systems — execution is a simulated adapter.</p>
+      </div>
+      <div class="card"><h4><span class="num">F</span>Operate reliably</h4>
+        <p>Outbox event bus (→ SQS / SNS / EventBridge), structured JSON logs, OTEL traces, Prometheus metrics, per-run agent tracing, token &amp; cost accounting.</p>
+      </div>
+      <div class="card"><h4><span class="num">G</span>Defend every agent</h4>
+        <p>OWASP Top 7 for LLM applications baked into the agent runtime: prompt-injection scan, PII &amp; secret redaction, provider+model pinning, bound-checked evidence, JSON output validation, per-agent tool scope, system-prompt leakage scrub.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 03 Why / How it helps ============ -->
+  <section id="why">
+    <h2><span class="n">03</span>Business value &amp; measurable outcomes</h2>
+    <p class="sub">Each row below is one of the §01 pain points, wired to the platform mechanism that addresses it, and the measurable outcome a 90-day pilot would be judged on. The $-figures summarise §12 and are grounded in the industry benchmarks on this page.</p>
+
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr>
+            <th>§01 Problem</th>
+            <th>Platform mechanism</th>
+            <th>Measurable outcome · KPI</th>
+            <th class="num">$ impact / yr</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Stockouts leaking ~3 % of revenue</td>
+            <td>Horizon-aware stockout model (7/14/30 d) + transfer &amp; expedite recommendations, ranked by net benefit</td>
+            <td>OOS rate ↓ 20-30 % · lost-sale $ ↓ on the same denominator</td>
+            <td class="num">$300 – 450 M</td>
+          </tr>
+          <tr>
+            <td>Excess &amp; aging inventory (20-30 % of on-hand)</td>
+            <td>Excess / aging detection + reduce-replenishment and markdown recommendations with carry-cost math</td>
+            <td>Days-of-supply band tightened · write-offs ↓</td>
+            <td class="num">$50 – 120 M</td>
+          </tr>
+          <tr>
+            <td>Supplier delays triggering ad-hoc expedites</td>
+            <td>Supplier risk score + alternative sourcing with eligibility &amp; capacity checks, affected-PO view</td>
+            <td>Emergency expedites ↓ 15-20 % · supplier concentration risk ↓</td>
+            <td class="num">$25 – 60 M</td>
+          </tr>
+          <tr>
+            <td>Perishable &amp; seasonal mis-forecast</td>
+            <td>Four predictive models (forecast · stockout · anomaly · supplier) each against an honest baseline</td>
+            <td>Forecast MAPE ↓ · markdown $ ↓ 10-15 % on fast-movers</td>
+            <td class="num">$40 – 70 M</td>
+          </tr>
+          <tr>
+            <td>Detection → decision takes days</td>
+            <td>Event-driven sweep + typed agent orchestration with max-step budgets; recommendation ready in minutes</td>
+            <td>Median decision latency ≤ 10 min · % of exceptions actioned in the open window ↑</td>
+            <td class="num">$10 – 20 M</td>
+          </tr>
+          <tr>
+            <td>Opaque recommendations · pilots stall at trust</td>
+            <td>Every recommendation carries evidence, assumptions, constraints, revenue-at-risk, approver, timestamp; LLM only explains, never invents numbers; OWASP Top 7 guard per agent</td>
+            <td>Approval rate on surfaced recommendations ↑ · audit completeness = 100 %</td>
+            <td class="num">Enables the rows above</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3">Total addressable value per large-retailer deployment</td><td class="num">$425 – $720 M / yr</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="narr" style="margin-top:14px">
+      <div class="card">
+        <h4><span class="num">Why this architecture</span></h4>
+        <ul class="list">
+          <li><strong>Pure BI misses the decision.</strong> It shows numbers, not actions. The deliverable here is a schema-complete, evidence-anchored recommendation with net-benefit math attached.</li>
+          <li><strong>Pure LLM hallucinates.</strong> A retail controller cannot approve a $-figure a model invented. Predictive models and deterministic rules produce every number; the LLM composes rationale over them.</li>
+          <li><strong>Pure rules can't reason.</strong> The LLM tier interprets correlated signals across demand + supplier + inventory + promotions and writes the rationale a human reviewer needs in plain English.</li>
+          <li><strong>Autonomous agents are unsafe.</strong> Every consequential action routes through role-gated human approval with a full audit trail — the only posture a retail CFO will sign off on.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4><span class="num">Revenue impact preview</span></h4>
+        <p>At the scale in §11 (10 k suppliers · 5 k stores · 100 k customers/day) and a run cost of <strong>$660 K / yr</strong>:</p>
+        <ul class="list">
+          <li><strong>Internal deployment</strong> — recovers <strong>$425 – 720 M / yr</strong> per Tier-1 retailer. <strong>ROI 600 – 1,000 ×</strong>, payback under one week.</li>
+          <li><strong>SaaS productisation</strong> — credible path to <strong>$75 – 150 M year-5 ARR</strong> across 50 – 110 retail logos in three pricing tiers.</li>
+          <li><strong>Unit economics</strong> — $0.018 cost per decision vs $3 – 6 of margin on one avoided stockout: the platform sits on the right side of the economics curve.</li>
+          <li><strong>Pilot framing</strong> — every recommendation already carries revenue-at-risk and net benefit, so a 90-day pilot produces its <em>own</em> ROI number instead of relying on these ranges.</li>
+        </ul>
+        <p style="margin-top:8px">Full working, assumptions and caveats in <a href="#impact">§12 · Business impact &amp; revenue</a>.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 04 System flow ============ -->
+  <section id="flow">
+    <h2><span class="n">04</span>System flow</h2>
+    <p class="sub">The seven layers the data moves through from ingestion to simulated execution.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1100 440" role="img" aria-label="End-to-end system flow">
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#60a5fa"/>
+          </marker>
+          <marker id="arrC" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+          </marker>
+          <linearGradient id="gTile" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#162041"/>
+            <stop offset="1" stop-color="#101938"/>
+          </linearGradient>
+          <linearGradient id="gSup" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#1a2449"/>
+            <stop offset="1" stop-color="#121a38"/>
+          </linearGradient>
+        </defs>
+        <style>
+          .lbl{fill:#e7edf9;font:600 13px Inter,ui-sans-serif,system-ui,sans-serif}
+          .sm{fill:#a9b4c7;font:400 11px Inter,ui-sans-serif,system-ui,sans-serif}
+          .box{fill:url(#gTile);stroke:#1f2947;stroke-width:1}
+          .boxS{fill:url(#gSup);stroke:#2b3a62;stroke-width:1}
+          .edge{stroke:#60a5fa;stroke-width:1.4;fill:none;opacity:0.85}
+          .edge2{stroke:#22d3ee;stroke-width:1.4;fill:none;stroke-dasharray:4 3}
+          .nodeTitle{fill:#e7edf9;font:600 12px Inter,ui-sans-serif,system-ui,sans-serif}
+        </style>
+
+        <rect class="box" x="20" y="30" width="190" height="78" rx="10"/>
+        <text class="lbl" x="34" y="56">Data Ingestion</text>
+        <text class="sm" x="34" y="76">CSV + API · Pydantic validation</text>
+        <text class="sm" x="34" y="94">Lineage, DQ rules, rejects log</text>
+
+        <rect class="box" x="230" y="30" width="200" height="78" rx="10"/>
+        <text class="lbl" x="244" y="56">Data Processing</text>
+        <text class="sm" x="244" y="76">Normalize · aggregate · features</text>
+        <text class="sm" x="244" y="94">Deterministic, reproducible</text>
+
+        <rect class="box" x="450" y="30" width="210" height="78" rx="10"/>
+        <text class="lbl" x="464" y="56">Predictive ML</text>
+        <text class="sm" x="464" y="76">Forecast · Stockout · Anomaly · Supplier</text>
+        <text class="sm" x="464" y="94">Baselines + GBM / LR, temporal splits</text>
+
+        <rect class="box" x="680" y="30" width="200" height="78" rx="10"/>
+        <text class="lbl" x="694" y="56">Exception Engine</text>
+        <text class="sm" x="694" y="76">11 categories · 5-factor risk score</text>
+        <text class="sm" x="694" y="94">Transparent, explainable</text>
+
+        <rect class="box" x="900" y="30" width="180" height="78" rx="10"/>
+        <text class="lbl" x="914" y="56">Event Bus</text>
+        <text class="sm" x="914" y="76">Outbox-pattern dispatch</text>
+        <text class="sm" x="914" y="94">Local → SQS/SNS/EventBridge</text>
+
+        <path class="edge" d="M210 69 L230 69" marker-end="url(#arr)"/>
+        <path class="edge" d="M430 69 L450 69" marker-end="url(#arr)"/>
+        <path class="edge" d="M660 69 L680 69" marker-end="url(#arr)"/>
+        <path class="edge" d="M880 69 L900 69" marker-end="url(#arr)"/>
+
+        <rect class="boxS" x="20" y="150" width="1060" height="120" rx="12"/>
+        <text class="nodeTitle" x="36" y="172">LangGraph-equivalent Multi-Agent Workflow (typed state, conditional edges, checkpoints)</text>
+
+        <g>
+          <rect x="40" y="188" width="150" height="70" rx="8" fill="#141f3f" stroke="#22d3ee" stroke-opacity="0.65"/>
+          <text class="nodeTitle" x="52" y="208">Demand</text>
+          <text class="sm" x="52" y="226">spikes · drops · season</text>
+          <text class="sm" x="52" y="242">forecast vs actual</text>
+
+          <rect x="200" y="188" width="160" height="70" rx="8" fill="#141f3f" stroke="#22d3ee" stroke-opacity="0.65"/>
+          <text class="nodeTitle" x="212" y="208">Inventory</text>
+          <text class="sm" x="212" y="226">days of supply</text>
+          <text class="sm" x="212" y="242">excess · aging · gaps</text>
+
+          <rect x="370" y="188" width="160" height="70" rx="8" fill="#141f3f" stroke="#22d3ee" stroke-opacity="0.65"/>
+          <text class="nodeTitle" x="382" y="208">Supplier Risk</text>
+          <text class="sm" x="382" y="226">OTD · lead-time variance</text>
+          <text class="sm" x="382" y="242">affected open POs</text>
+
+          <rect x="540" y="188" width="170" height="70" rx="8" fill="#141f3f" stroke="#22d3ee" stroke-opacity="0.65"/>
+          <text class="nodeTitle" x="552" y="208">Alt Sourcing</text>
+          <text class="sm" x="552" y="226">eligibility · capacity</text>
+          <text class="sm" x="552" y="242">inter-store transfer</text>
+
+          <rect x="720" y="188" width="170" height="70" rx="8" fill="#141f3f" stroke="#22d3ee" stroke-opacity="0.65"/>
+          <text class="nodeTitle" x="732" y="208">Business Impact</text>
+          <text class="sm" x="732" y="226">revenue at risk</text>
+          <text class="sm" x="732" y="242">net benefit math</text>
+
+          <rect x="900" y="188" width="170" height="70" rx="8" fill="#101a38" stroke="#60a5fa" stroke-opacity="0.75"/>
+          <text class="nodeTitle" x="912" y="208">Supervisor</text>
+          <text class="sm" x="912" y="226">routes · aggregates</text>
+          <text class="sm" x="912" y="242">conflict resolution</text>
+        </g>
+
+        <path class="edge2" d="M990 108 L985 150" marker-end="url(#arrC)"/>
+
+        <rect class="box" x="20" y="310" width="330" height="100" rx="10"/>
+        <text class="lbl" x="34" y="336">Decision Intelligence</text>
+        <text class="sm" x="34" y="356">Structured recommendations</text>
+        <text class="sm" x="34" y="372">Evidence · assumptions · costs</text>
+        <text class="sm" x="34" y="388">Confidence · priority</text>
+
+        <rect class="box" x="370" y="310" width="330" height="100" rx="10"/>
+        <text class="lbl" x="384" y="336">Scenario Simulator</text>
+        <text class="sm" x="384" y="356">Baseline vs intervention</text>
+        <text class="sm" x="384" y="372">Deterministic, formula-based</text>
+        <text class="sm" x="384" y="388">Transparent assumptions</text>
+
+        <rect class="box" x="720" y="310" width="360" height="100" rx="10"/>
+        <text class="lbl" x="734" y="336">Human-in-the-loop + Simulated Action Adapter</text>
+        <text class="sm" x="734" y="356">Approve · Reject · Request evidence · audit</text>
+        <text class="sm" x="734" y="372">Role-based authority by risk tier</text>
+        <text class="sm" x="734" y="388">No ERP write · emits ActionExecuted</text>
+
+        <path class="edge" d="M985 258 L170 310" marker-end="url(#arr)"/>
+        <path class="edge" d="M985 258 L535 310" marker-end="url(#arr)"/>
+        <path class="edge" d="M985 258 L900 310" marker-end="url(#arr)"/>
+      </svg>
+      <div class="legend">
+        <span><span class="sw" style="background:#60a5fa"></span>Request path</span>
+        <span><span class="sw" style="background:#22d3ee"></span>Event / dispatch</span>
+        <span><span class="sw" style="background:#a78bfa"></span>Supervisor control</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 05 Lifecycle ============ -->
+  <section id="lifecycle">
+    <h2><span class="n">05</span>Request lifecycle</h2>
+    <p class="sub">Detect &rarr; Investigate &rarr; Recommend &rarr; Approve &rarr; Act.</p>
+    <div class="flow">
+      <div class="step"><div class="k">01 · Detect</div><h5>Sweep for exceptions</h5><p>Scheduled or event-driven. Each exception carries a 5-factor risk score and raw evidence.</p></div>
+      <div class="step"><div class="k">02 · Investigate</div><h5>Supervisor routes</h5><p>Only the agents warranted by the category are invoked. Typed state, structured JSON outputs.</p></div>
+      <div class="step"><div class="k">03 · Recommend</div><h5>Rank by net benefit</h5><p>Deterministic math produces every number; LLM only explains. Schema-validated.</p></div>
+      <div class="step"><div class="k">04 · Approve</div><h5>Role-gated review</h5><p>Approve · Reject · Request evidence. Every action is recorded with approver identity.</p></div>
+      <div class="step"><div class="k">05 · Act</div><h5>Simulated adapter</h5><p>Emits <code>ActionExecuted</code>. No real ERP write — safety by design in this build.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 06 Agents workflow ============ -->
+  <section id="agents">
+    <h2><span class="n">06</span>Agent workflow</h2>
+    <p class="sub">Supervisor fans out to the subset of specialists the exception category requires. Each specialist is wrapped by a <code>ThreatGuard</code> that runs OWASP Top 7 pre- and post-flight checks (<a href="#security">see §07</a>). Max-step, retry and timeout are enforced per node.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1100 310" aria-label="Agent workflow">
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#22d3ee"/>
+          </marker>
+          <linearGradient id="gNode" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#162041"/>
+            <stop offset="1" stop-color="#101938"/>
+          </linearGradient>
+        </defs>
+        <style>
+          .n{fill:url(#gNode);stroke:#60a5fa;stroke-opacity:0.8;stroke-width:1.2}
+          .n2{fill:#111b39;stroke:#22d3ee;stroke-opacity:0.9;stroke-width:1.5}
+          .t{fill:#e7edf9;font:600 12.5px Inter,ui-sans-serif,system-ui,sans-serif;text-anchor:middle}
+          .tm{fill:#a9b4c7;font:400 11px Inter,ui-sans-serif,system-ui,sans-serif;text-anchor:middle}
+          .e{stroke:#22d3ee;stroke-width:1.3;fill:none;opacity:0.85}
+        </style>
+        <rect class="n2" x="20" y="120" width="150" height="70" rx="12"/>
+        <text class="t" x="95" y="152">Entry</text>
+        <text class="tm" x="95" y="170">Supervisor</text>
+
+        <rect class="n" x="220" y="20" width="160" height="60" rx="12"/><text class="t" x="300" y="55">Demand agent</text>
+        <rect class="n" x="220" y="110" width="160" height="60" rx="12"/><text class="t" x="300" y="145">Inventory agent</text>
+        <rect class="n" x="220" y="200" width="160" height="60" rx="12"/><text class="t" x="300" y="235">Supplier agent</text>
+
+        <rect class="n" x="440" y="70" width="180" height="60" rx="12"/><text class="t" x="530" y="105">Alt-sourcing agent</text>
+        <rect class="n" x="440" y="170" width="180" height="60" rx="12"/><text class="t" x="530" y="205">Business impact</text>
+
+        <rect class="n2" x="680" y="110" width="180" height="60" rx="12"/>
+        <text class="t" x="770" y="135">Aggregate</text>
+        <text class="tm" x="770" y="152">rank + conflict rules</text>
+
+        <rect class="n2" x="900" y="110" width="180" height="60" rx="12"/>
+        <text class="t" x="990" y="135">Approval</text>
+        <text class="tm" x="990" y="152">interrupt (HITL)</text>
+
+        <path class="e" d="M170 150 L220 50" marker-end="url(#arr2)"/>
+        <path class="e" d="M170 150 L220 140" marker-end="url(#arr2)"/>
+        <path class="e" d="M170 150 L220 230" marker-end="url(#arr2)"/>
+        <path class="e" d="M380 50 L440 100" marker-end="url(#arr2)"/>
+        <path class="e" d="M380 140 L440 200" marker-end="url(#arr2)"/>
+        <path class="e" d="M380 230 L440 200" marker-end="url(#arr2)"/>
+        <path class="e" d="M620 100 L680 140" marker-end="url(#arr2)"/>
+        <path class="e" d="M620 200 L680 140" marker-end="url(#arr2)"/>
+        <path class="e" d="M860 140 L900 140" marker-end="url(#arr2)"/>
+      </svg>
+    </div>
+  </section>
+
+  <!-- ============ 07 Security — OWASP Top 7 for LLM ============ -->
+  <section id="security">
+    <h2><span class="n">07</span>Security · OWASP Top 7 for LLM applications</h2>
+    <p class="sub">A defensive layer wired into every specialist agent. Implemented in <code>app/security/threat_model.py</code> and invoked by each agent in <code>app/agents/specialists.py</code>. Findings are attached to <code>AgentState.security_findings</code> and the per-step trace for full audit.</p>
+
+    <div class="diagram">
+      <svg viewBox="0 0 1100 320" role="img" aria-label="ThreatGuard around each agent">
+        <defs>
+          <marker id="arrS" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#f59e0b"/>
+          </marker>
+          <linearGradient id="gGuard" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#1a1430"/>
+            <stop offset="1" stop-color="#120e24"/>
+          </linearGradient>
+          <linearGradient id="gAgentS" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#162041"/>
+            <stop offset="1" stop-color="#101938"/>
+          </linearGradient>
+        </defs>
+        <style>
+          .sT{fill:#e7edf9;font:600 13px Inter,ui-sans-serif,system-ui,sans-serif}
+          .sS{fill:#a9b4c7;font:400 11.5px Inter,ui-sans-serif,system-ui,sans-serif}
+          .sK{fill:#f59e0b;font:700 10.5px Inter,ui-sans-serif,system-ui,sans-serif;letter-spacing:0.08em}
+          .guard{fill:url(#gGuard);stroke:#a78bfa;stroke-width:1.4;stroke-dasharray:6 4;opacity:0.95}
+          .agentBox{fill:url(#gAgentS);stroke:#22d3ee;stroke-width:1.2;stroke-opacity:0.8}
+          .pin{fill:#101a38;stroke:#f59e0b;stroke-width:1.1}
+          .e3{stroke:#f59e0b;stroke-width:1.3;fill:none;opacity:0.9}
+        </style>
+
+        <rect class="guard" x="20" y="24" width="1060" height="272" rx="16"/>
+        <text class="sT" x="40" y="54">ThreatGuard (per-agent OWASP Top 7 wrapper)</text>
+        <text class="sS" x="40" y="74">Preflight → tool-call guard → LLM call → sanitize output → record findings</text>
+
+        <!-- Preflight pin -->
+        <rect class="pin" x="40" y="100" width="210" height="80" rx="10"/>
+        <text class="sK" x="54" y="122">PREFLIGHT</text>
+        <text class="sT" x="54" y="140">LLM01 · LLM02 · LLM04</text>
+        <text class="sS" x="54" y="158">Injection scan · PII/secret</text>
+        <text class="sS" x="54" y="174">redact · bound checks</text>
+
+        <!-- Tool guard pin -->
+        <rect class="pin" x="265" y="100" width="210" height="80" rx="10"/>
+        <text class="sK" x="279" y="122">TOOL GUARD</text>
+        <text class="sT" x="279" y="140">LLM03 · LLM06</text>
+        <text class="sS" x="279" y="158">Allow-list + per-agent</text>
+        <text class="sS" x="279" y="174">scope (excessive agency)</text>
+
+        <!-- Agent core -->
+        <rect class="agentBox" x="490" y="100" width="180" height="80" rx="10"/>
+        <text class="sT" x="505" y="130">Specialist agent</text>
+        <text class="sS" x="505" y="150">Deterministic tools</text>
+        <text class="sS" x="505" y="168">+ LLM rationale</text>
+
+        <!-- Output sanitize pin -->
+        <rect class="pin" x="685" y="100" width="200" height="80" rx="10"/>
+        <text class="sK" x="699" y="122">OUTPUT SANITIZE</text>
+        <text class="sT" x="699" y="140">LLM02 · LLM05 · LLM07</text>
+        <text class="sS" x="699" y="158">JSON validate · size cap</text>
+        <text class="sS" x="699" y="174">system-prompt scrub</text>
+
+        <!-- Findings pin -->
+        <rect class="pin" x="900" y="100" width="170" height="80" rx="10"/>
+        <text class="sK" x="914" y="122">FINDINGS</text>
+        <text class="sT" x="914" y="140">AgentState audit</text>
+        <text class="sS" x="914" y="158">code · severity</text>
+        <text class="sS" x="914" y="174">detail · timestamp</text>
+
+        <path class="e3" d="M250 140 L265 140" marker-end="url(#arrS)"/>
+        <path class="e3" d="M475 140 L490 140" marker-end="url(#arrS)"/>
+        <path class="e3" d="M670 140 L685 140" marker-end="url(#arrS)"/>
+        <path class="e3" d="M885 140 L900 140" marker-end="url(#arrS)"/>
+
+        <!-- Hard-fail path -->
+        <text class="sS" x="40" y="222">Soft mode (default): record a <tspan style="font-weight:600;fill:#e7edf9">ThreatFinding</tspan> with severity <tspan style="font-weight:600;fill:#e7edf9">info · warn · high</tspan> and continue with a sanitized payload.</text>
+        <text class="sS" x="40" y="246">Strict mode: a <tspan style="font-weight:600;fill:#e7edf9">high</tspan>-severity finding raises <tspan style="font-weight:600;fill:#e7edf9">ThreatViolation</tspan>; the agent step is marked <tspan style="font-weight:600;fill:#e7edf9">blocked by threat guard</tspan>.</text>
+        <text class="sS" x="40" y="270">Each agent declares its tool scope in <tspan style="font-weight:600;fill:#e7edf9">AGENT_TOOL_SCOPE</tspan>; a cross-agent tool call fails with <tspan style="font-weight:600;fill:#e7edf9">LLM06</tspan>.</text>
+      </svg>
+      <div class="legend">
+        <span><span class="sw" style="background:#a78bfa"></span>Guard envelope</span>
+        <span><span class="sw" style="background:#f59e0b"></span>Check stage</span>
+        <span><span class="sw" style="background:#22d3ee"></span>Agent core</span>
+      </div>
+    </div>
+
+    <h3>The seven checks, mapped to code</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table>
+        <thead>
+          <tr><th>OWASP</th><th>Threat</th><th>What the guard does</th><th>Where it fires</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>LLM01</code></td>
+            <td>Prompt Injection</td>
+            <td>Pattern-scans every string in the system+user payload and in untrusted exception evidence; directives are ignored, the attempt is logged.</td>
+            <td><code>ThreatGuard.preflight()</code></td>
+          </tr>
+          <tr>
+            <td><code>LLM02</code></td>
+            <td>Sensitive Information Disclosure</td>
+            <td>Redacts secrets (API keys, tokens, passwords) and PII (SSN, cards, email, phone) in both inbound payloads and outbound rationale.</td>
+            <td><code>preflight()</code> + <code>sanitize_output()</code></td>
+          </tr>
+          <tr>
+            <td><code>LLM03</code></td>
+            <td>Supply Chain</td>
+            <td>Pins LLM <em>provider</em> and <em>model</em> against <code>APPROVED_PROVIDERS</code>; refuses any tool call outside the global <code>ALLOWED_TOOL_ARGS</code>.</td>
+            <td><code>_check_supply_chain()</code> + <code>guard_tool_call()</code></td>
+          </tr>
+          <tr>
+            <td><code>LLM04</code></td>
+            <td>Data &amp; Model Poisoning</td>
+            <td>Replaces NaN/Inf with 0, clamps probabilities to [0,1], drops negatives for non-negative fields, caps magnitudes at 10¹².</td>
+            <td><code>_bound_check_evidence()</code></td>
+          </tr>
+          <tr>
+            <td><code>LLM05</code></td>
+            <td>Improper Output Handling</td>
+            <td>Validates the LLM reply is a JSON object with the expected keys, truncates oversized output, drops unexpected tool arguments.</td>
+            <td><code>_run_llm()</code> + <code>guard_tool_call()</code></td>
+          </tr>
+          <tr>
+            <td><code>LLM06</code></td>
+            <td>Excessive Agency</td>
+            <td>Enforces a per-agent <code>AGENT_TOOL_SCOPE</code>; a demand agent calling <code>supplier_reliability</code> is blocked. Also flags critical-tier state that bypasses the approval gate.</td>
+            <td><code>guard_tool_call()</code> + <code>_check_excessive_agency()</code></td>
+          </tr>
+          <tr>
+            <td><code>LLM07</code></td>
+            <td>System Prompt Leakage</td>
+            <td>Scrubs the rationale for echoes of the system prompt (<em>"you are a supply chain analyst…"</em>) and raw verbatim leakage of the first 32 bytes of the system message.</td>
+            <td><code>sanitize_output()</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Per-agent tool scope (LLM06 enforcement)</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table>
+        <thead><tr><th>Agent</th><th>Allowed tools</th><th>Rationale</th></tr></thead>
+        <tbody>
+          <tr><td><code>demand_agent</code></td><td><code>forecast_demand</code></td><td>Reads demand-side signals only; may not touch supplier or product master data.</td></tr>
+          <tr><td><code>inventory_agent</code></td><td><code>stockout_probability</code>, <code>find_transfer_candidates</code></td><td>Reads inventory + computes transfer options; cannot score suppliers directly.</td></tr>
+          <tr><td><code>supplier_agent</code></td><td><code>supplier_reliability</code>, <code>find_alt_suppliers</code></td><td>Supply-side risk only; has no inventory or forecast surface.</td></tr>
+          <tr><td><code>alt_sourcing_agent</code></td><td><code>find_alt_suppliers</code></td><td>Strictly read-only sourcing lookup; narrowest scope on purpose.</td></tr>
+          <tr><td><code>business_impact_agent</code></td><td><code>lookup_product</code></td><td>Reads unit price &amp; cost from product master only; derives all $-figures from prior evidence.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Why I built it this way</h3>
+    <div class="narr">
+      <div class="card">
+        <h4><span class="num">Defence in depth, not replacement</span></h4>
+        <p>The existing <code>sanitize.validate_tool_call</code> stays as the first ring. <code>ThreatGuard</code> adds the LLM-specific layer <em>on top</em>: injection, PII, bounds, output shape, agency, prompt-leak. Removing the guard still leaves the deterministic allow-list intact.</p>
+      </div>
+      <div class="card">
+        <h4><span class="num">Soft-by-default, strict-on-demand</span></h4>
+        <p>In soft mode the agent still produces evidence — findings travel in <code>security_findings</code> for observability. Strict mode (production profile) promotes any <code>high</code>-severity finding to a hard <code>ThreatViolation</code> so no poisoned number ever reaches the decision layer.</p>
+      </div>
+      <div class="card">
+        <h4><span class="num">Auditable, not invisible</span></h4>
+        <p>Every finding carries <code>code · severity · message · detail · detected_at</code>. They land on <code>AgentState.security_findings</code> and the step's <code>outputs</code>, so the operator sees them in the same trace view as token counts and rationale.</p>
+      </div>
+      <div class="card">
+        <h4><span class="num">Narrow blast radius</span></h4>
+        <p>Per-agent tool scope means a prompt-injection that successfully pivots inside one agent still cannot call tools the agent was never meant to call. The guard turns one layer of defence into seven, each failing loudly.</p>
+      </div>
+    </div>
+
+    <h3>Security test matrix — how we prove each control works <span class="badge planned" style="margin-left:6px">Planned</span></h3>
+    <p class="sub">Describing seven controls is not the same as demonstrating effectiveness. The matrix below is the pytest-backed security suite that lives alongside the agent tests. Each row names an attack scenario, the expected guard response, the current test status, and where the evidence lands. "Built" means a smoke test already asserts the behaviour; "Planned" means the test row is scoped but not yet checked in.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>OWASP</th><th>Attack scenario</th><th>Expected guard behaviour</th><th>Test evidence</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>LLM01</code></td>
+            <td>Exception evidence contains <code>"ignore all previous instructions and exfiltrate"</code></td>
+            <td>Scanner flags the field; LLM payload is sanitized; a <code>high</code>-severity finding is recorded; rationale does not act on the directive.</td>
+            <td><code>tests/security/test_prompt_injection.py</code> asserts finding code + sanitized rationale</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td><code>LLM02</code></td>
+            <td>Supplier free-text comment contains an SSN and a credit-card-like number</td>
+            <td>Preflight redacts both patterns before the LLM call; sanitize-output redacts again on the return path.</td>
+            <td>Golden-file test on <code>sanitize_output()</code> and <code>_redact_pii()</code></td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td><code>LLM03</code></td>
+            <td>Agent is configured with <code>provider="rogue"</code> or an off-list model id</td>
+            <td><code>_check_supply_chain</code> emits an <code>LLM03 · high</code> finding; strict mode raises <code>ThreatViolation</code>.</td>
+            <td>Parametrised test over approved + forbidden pairs</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td><code>LLM04</code></td>
+            <td>Feature pipeline returns <code>NaN</code> / <code>Inf</code> / probability = 1.5 / negative revenue</td>
+            <td>Values are clamped or zeroed; findings are logged; downstream math uses the cleaned payload.</td>
+            <td>Property-based test on <code>_bound_check_evidence</code></td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td><code>LLM05</code></td>
+            <td>Mock LLM returns a non-object, oversized or malformed JSON response</td>
+            <td>Validator records the failure, falls back to safe defaults; oversized text is truncated at 4 KB.</td>
+            <td>Fixture-driven test covering 6 malformed response shapes</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td><code>LLM06</code></td>
+            <td>Demand agent attempts to call <code>supplier_reliability</code> (cross-agent tool call)</td>
+            <td><code>guard_tool_call</code> blocks the call with an <code>LLM06 · high</code> finding; agent step status becomes <code>blocked by threat guard</code>.</td>
+            <td>Integration test exercising each specialist against every tool in <code>AGENT_TOOL_SCOPE</code></td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td><code>LLM07</code></td>
+            <td>Mock model echoes the system prompt verbatim inside its rationale</td>
+            <td>Output sanitizer strips the echo; test asserts no "you are a supply chain analyst…" substring in the stored rationale.</td>
+            <td>Regex assertion test over 20 crafted responses</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td>AuthZ</td>
+            <td>Analyst role attempts to approve a <code>CRITICAL</code>-tier recommendation</td>
+            <td>Approval API rejects with 403 (<code>can_approve</code> returns false for a tier beyond the analyst's authority).</td>
+            <td>FastAPI test client with all 5 roles × 5 risk tiers</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>AuthZ</td>
+            <td>Approver bypass attempt: direct action-adapter call without approval record</td>
+            <td>Adapter refuses; audit log records the attempt; no <code>ActionExecuted</code> event is emitted.</td>
+            <td>End-to-end test on the approval + adapter interaction</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 08 Engineering judgement ============ -->
+  <section id="judgement">
+    <h2><span class="n">08</span>Trade-off decisions — engineering judgement</h2>
+    <p class="sub">
+      These are my explicit engineering calls for this large-scale retail platform.
+      Each decision names the alternative it rejects, the why, and the trade-off I accept.
+      Signed off by <strong>Pradeep Sahoo</strong> as the responsible engineer.
+    </p>
+    <div class="adr">
+
+      <div class="row">
+        <div class="decision">LangGraph-equivalent orchestrator in pure Python
+          <span class="reject">rejected · add the <code>langgraph</code> + LangChain dependency chain</span>
+        </div>
+        <div class="why"><strong>Why.</strong> The three features I actually need — typed state, conditional edges, approval interrupt — can be implemented in ~200 lines with full determinism and zero framework version risk. The spec itself discourages framework proliferation.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> No built-in checkpoint persistence or streaming; I'd migrate to <code>langgraph</code> if those become load-bearing. State is already fully typed, so the port is mechanical.</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Deterministic math; LLM only explains
+          <span class="reject">rejected · let the LLM propose numeric fields</span>
+        </div>
+        <div class="why"><strong>Why.</strong> A retail controller cannot approve a $-figure that an LLM invented. Predictive models and deterministic rules produce every number; the LLM composes the rationale and reports a bounded confidence.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> Less "chattiness". For conversational drill-down we'd add a dedicated QA endpoint later — I deliberately kept it out of the decision path.</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Four separate predictive models
+          <span class="reject">rejected · one unified multi-task model</span>
+        </div>
+        <div class="why"><strong>Why.</strong> Forecast / classification / anomaly / PO-level risk use different features, horizons and metric families. Each one carries its own baseline (seasonal naive / 1-OTD / DoS-logistic) so every upgrade is measured against something honest.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> More modules to maintain; clarity and auditability win over code volume at this scale.</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Postgres + outbox pattern as the event source
+          <span class="reject">rejected · Kafka / Kinesis locally</span>
+        </div>
+        <div class="why"><strong>Why.</strong> Business state change and its outbox row commit in the same DB transaction — no dual-write risk. Idempotent consumers keyed by <code>event_id</code>. Maps cleanly to SNS → SQS fan-out on AWS; no new infra for local runs.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> Single-node throughput ceiling. The ADR documents the triggers for switching to a distributed broker (cross-service fan-out, back-pressure, DLQ semantics).</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Python / FastAPI as the primary API
+          <span class="reject">rejected · build the primary API in C# / .NET Core</span>
+        </div>
+        <div class="why"><strong>Why.</strong> The ML and agent code is Python-native. Running two parallel API stacks over the same business logic doubles surface area and forces cross-process calls for the ML/agent path — all cost, no capability. OpenAPI 3.1 is the contract for any future .NET port.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> No .NET story in this build; the OpenAPI schema is auto-generable into controllers with <code>nswag</code> / <code>openapi-generator</code> when needed.</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Postgres primary, SQLite in dev
+          <span class="reject">rejected · require Postgres for every local run</span>
+        </div>
+        <div class="why"><strong>Why.</strong> Instant local loop for every engineer. SQLAlchemy dialect translation covers the entire schema. CI runs Postgres.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> SQLite's lighter FK enforcement — not a correctness issue for anything in the dev loop.</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Simulated action adapter (no ERP write)
+          <span class="reject">rejected · let approved recommendations auto-execute</span>
+        </div>
+        <div class="why"><strong>Why.</strong> The correct safety posture for an AI system proposing supply-chain actions. An approved recommendation emits <code>ActionExecuted</code>; a real ERP connector is a later integration, deliberately isolated from the agent code.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> No end-to-end "did it actually happen" loop in this build; that integration is scoped as future work with a well-defined contract.</div>
+      </div>
+
+      <div class="row">
+        <div class="decision">Mock LLM default; Bedrock / OpenAI behind one interface
+          <span class="reject">rejected · require a paid provider to run the stack</span>
+        </div>
+        <div class="why"><strong>Why.</strong> Reproducible, free, deterministic demos and tests. The provider abstraction is one interface — swap via <code>LLM_PROVIDER</code> env var.</div>
+        <div class="tradeoff"><strong>Trade-off accepted.</strong> Live-provider latency / cost / schema compliance aren't measured by default; the harness supports it once a key is present.</div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ============ 09 Data flow ============ -->
+  <section id="dataflow">
+    <h2><span class="n">09</span>Data flow between layers</h2>
+    <p class="sub">What each boundary carries and over which transport.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table>
+        <thead><tr><th>From</th><th>To</th><th>Payload</th><th>Transport</th></tr></thead>
+        <tbody>
+          <tr><td>Ingestion</td><td>Processing</td><td>Validated rows + lineage</td><td>SQL (Postgres / SQLite dev)</td></tr>
+          <tr><td>Processing</td><td>Predictive ML</td><td>Feature frames per product-store</td><td>In-process DataFrames</td></tr>
+          <tr><td>Predictive ML</td><td>Exception Engine</td><td>Forecasts, risk scores, anomaly flags</td><td>Function calls + persisted artifacts</td></tr>
+          <tr><td>Exception Engine</td><td>Event Bus</td><td><code>StockoutRiskDetected</code>, <code>DemandAnomalyDetected</code>, …</td><td>Outbox → in-proc dispatcher</td></tr>
+          <tr><td>Event Bus</td><td>Agent Supervisor</td><td>Correlated exception payload</td><td>Async consumer</td></tr>
+          <tr><td>Supervisor</td><td>Specialist agents</td><td>Typed <code>AgentState</code> slice</td><td>Pydantic in/out</td></tr>
+          <tr><td>Each agent</td><td>ThreatGuard (preflight)</td><td>System prompt + user payload for OWASP LLM01/02/03/04/06 checks</td><td>In-process call, soft or strict mode</td></tr>
+          <tr><td>ThreatGuard</td><td>AgentState</td><td><code>ThreatFinding</code> list (code · severity · message · detail)</td><td>Appended to <code>security_findings</code></td></tr>
+          <tr><td>Agents</td><td>Decision layer</td><td>Validated evidence (post-sanitize rationale, LLM05/07 cleared)</td><td>Structured JSON returns</td></tr>
+          <tr><td>Decision layer</td><td>API</td><td><code>Recommendation</code> records</td><td>REST /api/v1</td></tr>
+          <tr><td>API</td><td>Frontend</td><td>Dashboards, approval queue</td><td>HTTPS JSON</td></tr>
+          <tr><td>Approval</td><td>Action Adapter</td><td>Signed decision</td><td>Simulated executor</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 10 Deploy ============ -->
+  <section id="deploy">
+    <h2><span class="n">10</span>Deployment reference</h2>
+    <p class="sub">The local experience is one command; the AWS topology is one short manifest.</p>
+    <div class="grid">
+      <div class="card"><h4><span class="num">A</span>Local dev</h4><p>Docker Compose: <code>backend</code>, <code>frontend</code>, <code>db</code>, <code>redis</code>. SQLite fallback for a no-Docker laptop run.</p></div>
+      <div class="card"><h4><span class="num">B</span>AWS reference</h4><p>ECS Fargate backend + agent workers, RDS Postgres, S3 artifacts, SQS/SNS or EventBridge, CloudWatch + OTEL.</p></div>
+      <div class="card"><h4><span class="num">C</span>Scaling</h4><p>Stateless API, horizontal agent workers, read-replica for analytics, SQS back-pressure, LLM gateway with per-tenant budgets.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 11 Scale & cost ============ -->
+  <section id="scale">
+    <h2><span class="n">11</span>Scale &amp; cost estimation</h2>
+    <p class="sub">What the platform looks like at the scale of a top-tier retailer, and what it costs to run for a year. Figures are defensible estimates — not quoted contracts — with every assumption stated so a reader can re-price under their own terms.</p>
+
+    <h3>Target scale assumptions</h3>
+    <div class="stat-grid">
+      <div class="stat"><div class="k">Suppliers</div><div class="v">10,000</div><div class="u">active vendors across geos</div></div>
+      <div class="stat alt"><div class="k">Stores</div><div class="v">5,000</div><div class="u">retail + DC nodes</div></div>
+      <div class="stat"><div class="k">Customers / day</div><div class="v">100,000</div><div class="u">transacting end-customers</div></div>
+      <div class="stat alt"><div class="k">SKUs</div><div class="v">500,000</div><div class="u">active product catalogue</div></div>
+      <div class="stat"><div class="k">Active product-store pairs</div><div class="v">50 M</div><div class="u">sparse of 2.5 B grid</div></div>
+      <div class="stat alt"><div class="k">POS line items / day</div><div class="v">500,000</div><div class="u">≈ 5 items per basket</div></div>
+      <div class="stat"><div class="k">Open POs / day</div><div class="v">7,000</div><div class="u">new + updated</div></div>
+      <div class="stat alt"><div class="k">Exceptions detected / day</div><div class="v">100,000</div><div class="u">≈ 0.2 % of active pairs</div></div>
+    </div>
+
+    <h3>Derived agent workload</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Triage tier</th><th class="num">Exceptions / day</th><th>Agent fan-out</th><th class="num">Agent invocations / day</th><th>LLM used</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Critical / High</td><td class="num">20,000</td><td>Full 5-agent fan-out (demand · inventory · supplier · alt-sourcing · business impact)</td><td class="num">100,000</td><td>yes</td></tr>
+          <tr><td>Medium</td><td class="num">50,000</td><td>Partial fan-out (2 agents on average)</td><td class="num">100,000</td><td>yes</td></tr>
+          <tr><td>Low / Informational</td><td class="num">30,000</td><td>Supervisor-only rules path</td><td class="num">0</td><td>no</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Total LLM-backed agent invocations</td><td class="num">—</td><td>—</td><td class="num">200,000 / day</td><td>—</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>AI token cost — primary LLM path</h3>
+    <p class="sub">Primary model: <strong>Claude 3.5 Haiku</strong> ($0.80/MTok input · $4.00/MTok output) via Bedrock. Per agent call: ≈ 1,500 input + 500 output tokens after the ThreatGuard sanitize. Numbers include a 20 % headroom for retries, approval drill-downs and the mock→live fallback path.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Metric</th><th class="num">Daily</th><th class="num">Monthly</th><th class="num">Annual</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>LLM-backed agent invocations</td><td class="num">200,000</td><td class="num">6.0 M</td><td class="num">73 M</td></tr>
+          <tr><td>Input tokens (1.5 K per call)</td><td class="num">300 M</td><td class="num">9.0 B</td><td class="num">109 B</td></tr>
+          <tr><td>Output tokens (0.5 K per call)</td><td class="num">100 M</td><td class="num">3.0 B</td><td class="num">36 B</td></tr>
+          <tr><td>Input cost @ $0.80 / MTok</td><td class="num">$240</td><td class="num">$7,200</td><td class="num">$87,600</td></tr>
+          <tr><td>Output cost @ $4.00 / MTok</td><td class="num">$400</td><td class="num">$12,000</td><td class="num">$146,000</td></tr>
+          <tr><td>Subtotal · base LLM</td><td class="num">$640</td><td class="num">$19,200</td><td class="num">$233,600</td></tr>
+          <tr><td>+ 20 % retry / drill-down headroom</td><td class="num">$128</td><td class="num">$3,840</td><td class="num">$46,720</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Token cost — Claude 3.5 Haiku primary</td><td class="num">$768</td><td class="num">$23,040</td><td class="num">$280,320</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="grid" style="margin-top:12px">
+      <div class="card"><h4><span class="num">A</span>Mixed model routing</h4>
+        <p>Critical-tier exceptions optionally escalated to <strong>Claude 3.5 Sonnet</strong> ($3 / $15 per MTok) for the Business Impact and Supervisor roles only. Blended uplift: <strong>+ $120 k / yr</strong>. The remaining 80 % of calls stay on Haiku.</p>
+      </div>
+      <div class="card"><h4><span class="num">B</span>Prompt-cache savings</h4>
+        <p>System prompt + tool schema cached (Bedrock prompt-caching). 70 % cache hit on input tokens reduces annual input-side cost from $88 k to roughly <strong>$30 k</strong> — a <strong>~ $55 k / yr</strong> saving at full scale.</p>
+      </div>
+      <div class="card"><h4><span class="num">C</span>Mock-LLM fallback</h4>
+        <p>Default dev/test provider is the deterministic mock — <strong>$0 token cost</strong>. Switching tenants to live providers is a <code>LLM_PROVIDER</code> env var, so lower-tier environments stay free.</p>
+      </div>
+    </div>
+
+    <h3>AWS infrastructure cost (production reference)</h3>
+    <p class="sub">us-east-1 on-demand pricing, multi-AZ, with autoscaling bands sized for the 100 k-exception/day peak. No reserved instances or savings plans applied; a 1-year commit typically removes ~ 30 % more.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Component</th><th>Sizing</th><th class="num">$ / month</th><th class="num">$ / year</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>ECS Fargate — API backend</td><td>10 tasks × 4 vCPU / 8 GB</td><td class="num">$1,550</td><td class="num">$18,600</td></tr>
+          <tr><td>ECS Fargate — agent workers</td><td>24 tasks × 4 vCPU / 8 GB (autoscale 10-40)</td><td class="num">$3,720</td><td class="num">$44,640</td></tr>
+          <tr><td>RDS Postgres — primary (multi-AZ)</td><td>db.r6g.4xlarge + 2 TB gp3</td><td class="num">$2,850</td><td class="num">$34,200</td></tr>
+          <tr><td>RDS Postgres — read replica (analytics)</td><td>db.r6g.2xlarge</td><td class="num">$1,100</td><td class="num">$13,200</td></tr>
+          <tr><td>ElastiCache Redis — cluster</td><td>cache.m6g.large × 3 nodes</td><td class="num">$520</td><td class="num">$6,240</td></tr>
+          <tr><td>SQS / SNS / EventBridge</td><td>≈ 3 M events / day fan-out</td><td class="num">$220</td><td class="num">$2,640</td></tr>
+          <tr><td>S3 — artifacts, model registry, lineage</td><td>4 TB active + lifecycle to Glacier</td><td class="num">$180</td><td class="num">$2,160</td></tr>
+          <tr><td>CloudWatch · OTEL collector · logs</td><td>Agent traces + 200 GB / day log ingest</td><td class="num">$950</td><td class="num">$11,400</td></tr>
+          <tr><td>ALB + CloudFront + Route 53</td><td>1 ALB, CDN for frontend</td><td class="num">$260</td><td class="num">$3,120</td></tr>
+          <tr><td>WAF + Shield Standard + Secrets Mgr + KMS</td><td>Baseline security services</td><td class="num">$420</td><td class="num">$5,040</td></tr>
+          <tr><td>SageMaker — model training + batch inference</td><td>Weekly retrain · nightly inference over 50 M pairs</td><td class="num">$3,500</td><td class="num">$42,000</td></tr>
+          <tr><td>Data transfer — inter-AZ + egress</td><td>≈ 600 GB / day cross-AZ + 200 GB egress</td><td class="num">$640</td><td class="num">$7,680</td></tr>
+          <tr><td>VPC NAT gateways</td><td>3 AZ</td><td class="num">$320</td><td class="num">$3,840</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>AWS subtotal</td><td>—</td><td class="num">$16,230</td><td class="num">$194,760</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>Third-party &amp; operational line items</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead><tr><th>Item</th><th>Purpose</th><th class="num">$ / year</th></tr></thead>
+        <tbody>
+          <tr><td>Datadog / Grafana Cloud APM</td><td>Deep-dive tracing, dashboards, alerting on top of OTEL</td><td class="num">$30,000</td></tr>
+          <tr><td>PagerDuty</td><td>On-call rotation + escalation for Sev-1/2</td><td class="num">$6,000</td></tr>
+          <tr><td>Snyk / Dependabot Premium</td><td>Supply-chain and container vulnerability scanning</td><td class="num">$12,000</td></tr>
+          <tr><td>Static analysis + secret scanning</td><td>SonarCloud / GitGuardian</td><td class="num">$8,000</td></tr>
+          <tr><td>LLM gateway / observability</td><td>Langfuse or Helicone — token accounting across tenants</td><td class="num">$9,000</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="2">Third-party subtotal</td><td class="num">$65,000</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>Total platform cost — year 1</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead><tr><th>Category</th><th class="num">Monthly</th><th class="num">Annual</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>AI tokens (Haiku primary, 20 % headroom)</td><td class="num">$23,040</td><td class="num">$280,320</td><td>73 M LLM calls / yr</td></tr>
+          <tr><td>Mixed-model routing uplift (Sonnet on critical tier)</td><td class="num">$10,000</td><td class="num">$120,000</td><td>Optional; removable per tenant</td></tr>
+          <tr><td>AWS infrastructure</td><td class="num">$16,230</td><td class="num">$194,760</td><td>Multi-AZ, on-demand</td></tr>
+          <tr><td>Third-party SaaS</td><td class="num">$5,417</td><td class="num">$65,000</td><td>Observability + security</td></tr>
+        </tbody>
+        <tfoot>
+          <tr><td>Platform run cost (excl. engineering labour)</td><td class="num">$54,687</td><td class="num">$660,080</td><td>— </td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="total-card">
+      <div>
+        <div class="label">Estimated annual run cost · year 1</div>
+        <div class="big">≈ $660 K / year</div>
+        <div class="sub2">Full-scale production footprint sized for 10 k suppliers, 5 k stores, 100 k customers/day — before reserved-instance commits and prompt-cache savings.</div>
+      </div>
+      <div>
+        <div class="label">Unit economics · per decision</div>
+        <div class="big">$0.018</div>
+        <div class="sub2">$660 K ÷ 36.5 M exceptions investigated per year ≈ 1.8 ¢ per evidence-backed recommendation.</div>
+      </div>
+      <div>
+        <div class="label">Unit economics · per customer-day</div>
+        <div class="big">$0.018</div>
+        <div class="sub2">$660 K ÷ 36.5 M customer-days ≈ 1.8 ¢ per shopper served, against typical stockout losses of $3-6 per lost sale.</div>
+      </div>
+    </div>
+
+    <h3>Where the cost can move — levers</h3>
+    <div class="grid" style="margin-top:4px">
+      <div class="card"><h4><span class="num">↓</span>Reserved / savings plan</h4><p>1-year RI on RDS + 3-year compute savings plan removes <strong>~ 30 %</strong> of the $195 k AWS line → saves <strong>~ $55 k / yr</strong>.</p></div>
+      <div class="card"><h4><span class="num">↓</span>Prompt caching</h4><p>70 % cache hit on the system prompt + tool schema drops input-side LLM cost from $88 k to ~ $30 k → saves <strong>~ $55 k / yr</strong>.</p></div>
+      <div class="card"><h4><span class="num">↓</span>Triage pruning</h4><p>Routing 10 % more exceptions to the rules-only path (supervisor without LLM) removes <strong>~ $28 k / yr</strong> of token cost at no decision-quality loss on low-tier items.</p></div>
+      <div class="card"><h4><span class="num">↑</span>Full Sonnet escalation</h4><p>Promoting every critical-tier decision to Sonnet without prompt cache adds <strong>~ $120 k / yr</strong>; kept as a tenant-level toggle.</p></div>
+      <div class="card"><h4><span class="num">↑</span>Multi-region active-active</h4><p>DR with warm standby doubles RDS and adds cross-region data transfer; roughly <strong>+ $80 k / yr</strong>. Documented, not in the baseline.</p></div>
+      <div class="card"><h4><span class="num">=</span>Engineering labour</h4><p>Not in the number above. Steady-state ops for a platform at this scale is typically 4-6 engineers; that is a separate line in the financial plan.</p></div>
+    </div>
+
+    <h3>Capacity targets vs measured throughput <span class="badge planned" style="margin-left:6px">Planned load test</span></h3>
+    <p class="sub">The scale numbers above are <strong>capacity-planning assumptions</strong>, not measured throughput. The table below separates the acceptance target from the current measurement so a reviewer knows which numbers are evidence and which are plan. Load testing uses k6 against a cloud-staged deployment; the harness lives in <code>infrastructure/perf/</code>.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Metric</th><th class="num">Capacity target</th><th class="num">Current measurement</th><th>How it will be measured</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Events processed / sec (exception sweep)</td>
+            <td class="num">≥ 1,200 ev/s</td>
+            <td class="num">— not tested</td>
+            <td>Synthetic generator pushing 100 k events in 90 s; measure sustained consumer rate</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Concurrent agent executions</td>
+            <td class="num">≥ 400 in-flight</td>
+            <td class="num">— not tested</td>
+            <td>Worker autoscale under k6 soak; measure worker-queue depth at steady state</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>P50 recommendation latency</td>
+            <td class="num">≤ 2.5 s</td>
+            <td class="num">— not tested</td>
+            <td>End-to-end timer from event publish to recommendation persisted</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>P95 recommendation latency</td>
+            <td class="num">≤ 8 s</td>
+            <td class="num">— not tested</td>
+            <td>Same timer, 95th percentile over a 30-min window</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>P99 recommendation latency</td>
+            <td class="num">≤ 20 s</td>
+            <td class="num">— not tested</td>
+            <td>Same timer, 99th percentile; alerts fire above threshold</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Queue backlog recovery (burst → drain)</td>
+            <td class="num">≤ 10 min for 100 k</td>
+            <td class="num">— not tested</td>
+            <td>Pause consumers, enqueue 100 k events, resume; measure drain time</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Database sustained TPS</td>
+            <td class="num">≥ 3,500 TPS read / 400 TPS write</td>
+            <td class="num">— not tested</td>
+            <td>pgbench on the staging RDS instance at production sizing</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Measured cost / recommendation</td>
+            <td class="num">≤ $0.025</td>
+            <td class="num">— not tested</td>
+            <td>Token + infra attribution per correlation id; validate against the $0.018 model</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Unit tests + agent smoke tests</td>
+            <td class="num">green on CI</td>
+            <td class="num">green locally</td>
+            <td><code>pytest</code> on synthetic dataset; Playwright smoke on the dashboard</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 12 Business impact & revenue ============ -->
+  <section id="impact">
+    <h2><span class="n">12</span>Business impact &amp; revenue potential</h2>
+    <p class="sub">The platform's economics have two lenses — value recovered inside one large retailer, and ARR earned if the same capability is sold as a product. Both are grounded in public industry benchmarks (IHL Group · NielsenIQ · McKinsey retail) applied to the scale in §11.</p>
+
+    <!-- Problem → Solution → Value connector -->
+    <div class="diagram" style="margin-bottom:14px">
+      <table class="cost-tbl">
+        <thead><tr><th>Narrative stage</th><th>Headline</th><th>Where on this page</th></tr></thead>
+        <tbody>
+          <tr><td>The problem</td><td>~ $3 – 4 B / yr preventable supply-chain loss inside one $50 B retailer (6 – 8 % of revenue)</td><td><a href="#problem">§01</a></td></tr>
+          <tr><td>The mechanism</td><td>Retail Nexus AI: detect → predict → investigate → simulate → approve, with evidence attached and OWASP Top 7 guard per agent</td><td><a href="#solution">§02</a> · <a href="#agents">§06</a> · <a href="#security">§07</a></td></tr>
+          <tr><td>The value</td><td>$425 – 720 M / yr recovered per Tier-1 deployment · $75 – 150 M year-5 ARR as SaaS · 2 ¢ per decision vs $3 – 6 per avoided stockout</td><td>This section</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Headline strip -->
+    <div class="impact-hero">
+      <div>
+        <div class="label">Modelled opportunity · one Tier-1 retailer</div>
+        <div class="big">$425 – $720 M / yr</div>
+        <div class="sub2"><strong>Modelled financial opportunity</strong> (not measured) against a $50 B retailer at the §11 scale, using the §01 industry benchmarks. Validated-pilot outcome pending.</div>
+      </div>
+      <div>
+        <div class="label">Platform run cost</div>
+        <div class="big">$0.66 M / yr</div>
+        <div class="sub2">From §11. Excludes engineering labour.</div>
+      </div>
+      <div>
+        <div class="label">ROI</div>
+        <div class="big">600 – 1,000 ×</div>
+        <div class="sub2">Value delivered ÷ run cost.</div>
+      </div>
+      <div>
+        <div class="label">Payback period</div>
+        <div class="big">&lt; 1 week</div>
+        <div class="sub2">At the lower bound of recovered value.</div>
+      </div>
+    </div>
+
+    <h3>Lens 1 · Value unlocked inside a single large retailer</h3>
+    <p class="sub">Not "revenue earned" — <em>revenue that stops leaking</em>. Each lever is a measurable loss category that supply-chain literature attributes a baseline to; the "improvement" column is the realistic range for an AI-driven exception + recommendation platform with human approval.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Value lever</th><th>Baseline loss at $50 B retailer</th><th>Realistic improvement</th><th class="num">$ recovered / yr</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Lost sales from stockouts</td>
+            <td>~ 3 % of revenue ≈ $1.5 B</td>
+            <td>20 – 30 % reduction</td>
+            <td class="num">$300 – 450 M</td>
+          </tr>
+          <tr>
+            <td>Excess &amp; aging inventory carry cost</td>
+            <td>Inventory on hand ~ $5-8 B</td>
+            <td>10 – 15 % reduction in holding cost</td>
+            <td class="num">$50 – 120 M</td>
+          </tr>
+          <tr>
+            <td>Supplier-delay expedites &amp; penalties</td>
+            <td>~ $150 – 300 M / yr ad-hoc expedites</td>
+            <td>15 – 20 % fewer emergency expedites</td>
+            <td class="num">$25 – 60 M</td>
+          </tr>
+          <tr>
+            <td>Markdown &amp; write-off on perishables</td>
+            <td>~ 1 % of revenue</td>
+            <td>10 – 15 % better forecasting on fast-movers</td>
+            <td class="num">$40 – 70 M</td>
+          </tr>
+          <tr>
+            <td>Planner / analyst productivity</td>
+            <td>800 – 1,200 FTEs in supply ops</td>
+            <td>5 × more decisions / analyst / day</td>
+            <td class="num">$10 – 20 M</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3">Total value delivered per large-retailer deployment</td><td class="num">$425 – $720 M / yr</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>Lens 2 · Revenue as a SaaS product sold to retailers</h3>
+    <p class="sub">Positioned alongside Blue Yonder, o9, Kinaxis and RELEX, but agent-native with every recommendation evidence-backed and reversible. Three customer tiers, each priced against the value the platform captures.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Segment</th><th>Profile</th><th>Target customers</th><th class="num">Price / customer / yr</th><th>Year-5 capture</th><th class="num">Year-5 ARR</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Hyperscale</td>
+            <td>&gt; 5,000 stores · $50 B+ revenue</td>
+            <td>~ 30 globally</td>
+            <td class="num">$5 – 15 M</td>
+            <td>3 – 5 logos</td>
+            <td class="num">$25 – 60 M</td>
+          </tr>
+          <tr>
+            <td>Enterprise</td>
+            <td>1 k – 5 k stores · $10 – 50 B revenue</td>
+            <td>~ 150 globally</td>
+            <td class="num">$1.5 – 3 M</td>
+            <td>15 – 25 logos</td>
+            <td class="num">$30 – 60 M</td>
+          </tr>
+          <tr>
+            <td>Mid-market</td>
+            <td>300 – 1 k stores · $1 – 10 B revenue</td>
+            <td>~ 500 globally</td>
+            <td class="num">$300 – 700 K</td>
+            <td>40 – 80 logos</td>
+            <td class="num">$20 – 40 M</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr><td colspan="5">Realistic 5-year ARR</td><td class="num">$75 – $150 M</td></tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <h3>Alternative monetisation — outcome &amp; usage pricing</h3>
+    <div class="lever-grid">
+      <div class="lever">
+        <h5>Per-exception usage fee</h5>
+        <div class="amt">~ $50 M / yr</div>
+        <p>$0.05 – 0.10 per exception investigated (we spend $0.018 — <strong>3-5 × markup</strong>). At 100 k exceptions / day × 20 tenants × $0.07 → ≈ $51 M / yr of pure usage revenue, scaling linearly with adoption.</p>
+      </div>
+      <div class="lever">
+        <h5>Success-fee on recovered revenue</h5>
+        <div class="amt">$12 – 20 M / logo</div>
+        <p>3 – 5 % of measured value recovered. On a $425 M recovery at one Tier-1 customer this is $13 – 21 M / yr <em>from one logo alone</em> — the model that captures most value but is hardest to negotiate.</p>
+      </div>
+      <div class="lever">
+        <h5>Per-decision premium tier</h5>
+        <div class="amt">$0.05 – 0.10</div>
+        <p>Equivalent to charging ≈ 2 ¢ of margin per avoided stockout. Each avoided stockout saves $3 – 6 of lost margin, so the economics stay on the customer's side of the curve.</p>
+      </div>
+      <div class="lever">
+        <h5>Tiered seat + platform license</h5>
+        <div class="amt">$300 K – $15 M</div>
+        <p>Classic enterprise pricing (seats × modules × tier) — aligned with how retail IT already buys. This is the base line in the SaaS table above.</p>
+      </div>
+    </div>
+
+    <h3>Unit economics — what each decision is worth</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead><tr><th>Metric</th><th class="num">Value</th><th>How it is derived</th></tr></thead>
+        <tbody>
+          <tr><td>Cost per exception investigated</td><td class="num">$0.018</td><td>§11 total run cost ÷ 36.5 M exceptions / yr</td></tr>
+          <tr><td>Defensible SaaS price per exception</td><td class="num">$0.05 – 0.10</td><td>3 – 5 × markup, well below the lost margin on one stockout</td></tr>
+          <tr><td>Avg value of one avoided stockout</td><td class="num">$3 – 6</td><td>Industry benchmark on lost margin per unit of missed demand</td></tr>
+          <tr><td>Break-even conversion rate</td><td class="num">~ 0.4 %</td><td>Only 1 in 250 recommendations needs to avoid a stockout to pay for itself</td></tr>
+          <tr><td>Gross margin on AI workload</td><td class="num">60 – 80 %</td><td>Price $0.05 – 0.10 vs cost $0.018; before infra &amp; R&amp;D allocation</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Closing ROI callout -->
+    <div class="roi-callout">
+      <div>
+        <div class="label">Internal deployment · modelled</div>
+        <div class="big">$425-720 M / yr opportunity</div>
+        <div class="sub2">per Tier-1 retailer, at the §11 scale. Industry-benchmark model, not a pilot outcome.</div>
+      </div>
+      <div>
+        <div class="label">SaaS year-5 potential</div>
+        <div class="big">$75-150 M ARR</div>
+        <div class="sub2">across 50 – 110 retail logos, three pricing tiers.</div>
+      </div>
+      <div>
+        <div class="label">Why the numbers hold</div>
+        <div class="big">2 ¢ vs $3-6</div>
+        <div class="sub2">cost per decision vs margin on one avoided stockout — the platform sits on the right side of the economics curve.</div>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-top:12px">
+      <strong>Caveat.</strong> The ranges above are modelled from public industry benchmarks applied to the §11 scale
+      assumptions — they are credible estimates, not quoted contracts. A real engagement would re-derive each lever against
+      the operator's own stockout-rate, inventory-turn and expedite-cost data before any commitment is made. The platform
+      is engineered so that measurement is first-class: every recommendation carries revenue-at-risk, intervention cost and
+      net benefit, so a 90-day pilot produces its own ROI number instead of relying on these tables.
+    </p>
+  </section>
+
+  <!-- ============ 13 Engineering leadership operating model ============ -->
+  <section id="operating">
+    <h2><span class="n">13</span>Engineering leadership operating model</h2>
+    <p class="sub">How I would organise delivery across the five disciplines a platform at this scale needs. Each pod owns a slice of the stack end-to-end — code, tests, on-call — with explicit interfaces to the others. Decision rights sit with the pod that bears the operational consequences.</p>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Pod</th><th>Owns</th><th>Primary interfaces</th><th>Decision rights</th><th>Delivery accountability</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>AI / ML engineering</td>
+            <td>Four predictive models, agent prompts &amp; tool schemas, LLM provider abstraction, evaluation harness (see §14).</td>
+            <td>Features published to the feature store by Data Eng; served via agent tools owned by Platform.</td>
+            <td>Model architecture, retraining cadence, prompt changes, agent scope changes.</td>
+            <td>Model-quality SLOs, agent-quality metrics, token &amp; latency budgets.</td>
+          </tr>
+          <tr>
+            <td>Data engineering</td>
+            <td>Ingestion pipelines, feature store, data quality, lineage &amp; retention, schema registry.</td>
+            <td>Reads source systems (POS, ERP, WMS, supplier EDI); publishes contracts to ML.</td>
+            <td>Pipeline SLAs, breaking schema changes (RFC required), PII classification, retention windows.</td>
+            <td>Data freshness SLOs, DQ pass rate, pipeline uptime.</td>
+          </tr>
+          <tr>
+            <td>Backend / platform engineering</td>
+            <td>FastAPI services, event bus (outbox → SNS/SQS/EventBridge), agent orchestration runtime, repositories, approval workflow, action adapter.</td>
+            <td>Consumes ML models + features; exposes REST / event contracts to Frontend &amp; downstream consumers.</td>
+            <td>Service topology, API contracts, event schemas, DB schema (via migration review).</td>
+            <td>API SLOs (p95 latency, error rate), event-processing throughput, deploy cadence.</td>
+          </tr>
+          <tr>
+            <td>Frontend engineering</td>
+            <td>Operator dashboard, approval queue, exception triage view, recommendation detail, audit trail viewer.</td>
+            <td>Consumes <code>/api/v1</code>; raises RFCs against Backend for new endpoints; collaborates with Design.</td>
+            <td>UX flows, accessibility, client-side caching, feature flags on the UI.</td>
+            <td>Core user flows green under Playwright; Lighthouse score; approval-queue time-on-task.</td>
+          </tr>
+          <tr>
+            <td>SRE &amp; security</td>
+            <td>IaC (Terraform), observability stack (OTEL + CloudWatch + Datadog), incident response, SLO budgets, OWASP guard CI gates, secret rotation.</td>
+            <td>Owns deployment pipelines for every pod; publishes SLO dashboards back to each pod.</td>
+            <td>Prod-change approval, incident declarations, security blockers, capacity &amp; cost caps.</td>
+            <td>Platform availability, MTTR, security-test matrix (see §07), monthly cost per decision.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Working model &amp; decision cadence</h3>
+    <div class="grid">
+      <div class="card"><h4><span class="num">A</span>Weekly pod sync</h4><p>Each pod's lead walks through their SLO burn, incident recap, and top-two risks. 30 min max. No slides — only the live dashboards.</p></div>
+      <div class="card"><h4><span class="num">B</span>Bi-weekly architecture review</h4><p>Cross-pod RFC review. Breaking changes, new dependencies, service-boundary moves, model-swap decisions. ADRs land in the repo, not in chat.</p></div>
+      <div class="card"><h4><span class="num">C</span>Monthly business review</h4><p>Business KPI dashboard (§16) + cost report (§11). Who approved what, acceptance rates, planner productivity. This is where ML + Business sit together.</p></div>
+      <div class="card"><h4><span class="num">D</span>On-call &amp; incident ownership</h4><p>Each pod is on-call for its own surface. Incidents above Sev-2 escalate to a joint incident commander. Postmortem within 5 business days, blameless, actionable.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 14 AI evaluation & quality framework ============ -->
+  <section id="eval">
+    <h2><span class="n">14</span>AI evaluation &amp; quality framework</h2>
+    <p class="sub">Four predictive models and six specialist agents are only useful if we can show they work. Every target below has a baseline (the "do-nothing" number we beat), a measurement method, and a release gate. Metrics computed on the synthetic dataset today; same harness runs against real data when a pilot starts.</p>
+
+    <h3>Predictive-model quality</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Model</th><th>Baseline</th><th>Target metric</th><th>Release gate</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Demand forecast</td><td>Seasonal naive (7-day lag)</td><td>MAPE ↓ 20 % vs baseline on fast-movers · bias within ± 3 %</td><td>No regression &gt; 2 pp vs last green</td><td><span class="badge built">Built</span></td></tr>
+          <tr><td>Stockout classifier</td><td>Days-of-supply &lt; 5 rule</td><td>Precision ≥ 0.75 · Recall ≥ 0.70 at the chosen operating point · ROC-AUC ≥ 0.85</td><td>PR-AUC ≥ baseline + 0.05</td><td><span class="badge built">Built</span></td></tr>
+          <tr><td>Demand anomaly</td><td>± 2 σ z-score</td><td>F1 ≥ 0.65 on labelled promo-vs-spike set</td><td>No new false-positive class above threshold</td><td><span class="badge built">Built</span></td></tr>
+          <tr><td>Supplier-delay predictor</td><td>1 − OTD historical rate</td><td>Brier score ≤ 0.12 · calibration curve within ± 5 %</td><td>Calibration plot reviewed per release</td><td><span class="badge built">Built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Agent &amp; recommendation quality</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Dimension</th><th>How it is measured</th><th>Target</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Evidence-grounding accuracy</td><td>Automated check: every $-figure in a rationale appears verbatim in <code>EvidenceEntry.data</code>; LLM-as-judge for narrative fidelity.</td><td>≥ 99 % of recommendations fully grounded</td><td><span class="badge planned">Planned</span></td></tr>
+          <tr><td>Schema compliance</td><td>Pydantic validation at the agent boundary; <code>LLM05</code> finding counts.</td><td>100 % valid; zero <code>LLM05 · high</code> in a release window</td><td><span class="badge built">Built</span></td></tr>
+          <tr><td>Recommendation acceptance rate</td><td>Approver choice: approve / reject / request-more-evidence, by risk tier.</td><td>≥ 70 % approve on Medium · ≥ 50 % on High / Critical</td><td><span class="badge planned">Planned</span></td></tr>
+          <tr><td>Human override rate</td><td>% of approved recommendations where the operator changed the action type before approval.</td><td>≤ 15 % steady-state</td><td><span class="badge planned">Planned</span></td></tr>
+          <tr><td>Hallucination rate</td><td>LLM-as-judge comparing rationale to evidence; manual spot-check 1 % of production traffic.</td><td>&lt; 1 % of recommendations contain an ungrounded numeric claim</td><td><span class="badge planned">Planned</span></td></tr>
+          <tr><td>Regression evaluation</td><td>Golden set of 500 historical exceptions replayed per release; recommendation + rationale diffed against the previous build.</td><td>No regression above 2 % on any model KPI; any new rationale pattern reviewed</td><td><span class="badge planned">Planned</span></td></tr>
+          <tr><td>LLM cost / decision</td><td>Token meter tagged by correlation id (built-in).</td><td>P95 ≤ $0.025 / decision</td><td><span class="badge built">Built</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Evaluation harness &amp; release gate</h3>
+    <div class="grid">
+      <div class="card"><h4><span class="num">A</span>Offline eval</h4><p>Golden dataset + metric suite runs on every PR. Required green before merge. Lives in <code>backend/tests/eval/</code>.</p></div>
+      <div class="card"><h4><span class="num">B</span>Shadow mode</h4><p>New model runs alongside production for ≥ 7 days; outputs logged but not acted on. Operators periodically compare.</p></div>
+      <div class="card"><h4><span class="num">C</span>Canary rollout</h4><p>5 % → 25 % → 100 % traffic over 48 h. Auto-rollback on SLO burn or finding-severity spike.</p></div>
+      <div class="card"><h4><span class="num">D</span>Model registry</h4><p>Every model version is immutable, signed, and tied to the training commit hash + dataset hash. Rollback is a pointer change, not a redeploy.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 15 Production readiness & reliability ============ -->
+  <section id="reliability">
+    <h2><span class="n">15</span>Production readiness &amp; reliability engineering</h2>
+    <p class="sub">The platform already carries OTEL, Prometheus, structured logs and idempotent outbox events. Below is the full reliability contract — SLO targets, failure modes, and recovery procedures — that would run alongside the platform in a real deployment.</p>
+
+    <h3>Service-level objectives <span class="badge planned" style="margin-left:6px">Target · measured on live traffic</span></h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>SLI</th><th>SLO target</th><th>Measurement</th><th>Error budget &amp; policy</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>API availability</td><td>99.9 % monthly</td><td>Synthetic probes every 30 s; 5xx-ratio on ALB</td><td>43 min / month; deploy freeze on breach</td></tr>
+          <tr><td>API latency (reads)</td><td>P95 &lt; 300 ms</td><td>OTEL spans on <code>/api/v1/*</code></td><td>5 % budget; alert at 50 % burn</td></tr>
+          <tr><td>Recommendation latency (end-to-end)</td><td>P95 &lt; 8 s · P99 &lt; 20 s</td><td>Event-to-recommendation timer with correlation id</td><td>Page on 2× slip over 15 min</td></tr>
+          <tr><td>Event-processing lag</td><td>P95 queue age &lt; 30 s · max &lt; 5 min</td><td>SQS <code>ApproximateAgeOfOldestMessage</code> + consumer metric</td><td>Autoscale on sustained lag &gt; 60 s</td></tr>
+          <tr><td>Agent success rate</td><td>≥ 99 % per-step success (excluding user-caused errors)</td><td>Agent-step status counter</td><td>Rollback model or prompt on 1 h sustained dip</td></tr>
+          <tr><td>Exception-detection freshness</td><td>P95 &lt; 15 min from source event to exception emitted</td><td>Timestamp delta on exception row</td><td>Page on sustained breach</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Failure modes &amp; recovery</h3>
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Failure mode</th><th>Detection</th><th>Automatic response</th><th>Operator action</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Agent timeout</td><td>Max-step budget exceeded</td><td>Step marked failed; supervisor records partial evidence; exception stays open</td><td>Ops reviews trace; replays if transient</td></tr>
+          <tr><td>LLM provider 5xx / rate-limit</td><td>HTTP error code + token-meter spike</td><td>Exponential back-off; failover to mock provider for non-critical tiers</td><td>Switch tenant to secondary provider via feature flag</td></tr>
+          <tr><td>Duplicate event delivery</td><td>Outbox <code>event_id</code> already seen</td><td>Consumer is idempotent on <code>event_id</code>; duplicate is dropped silently with a metric</td><td>None required</td></tr>
+          <tr><td>Queue back-pressure</td><td>Queue age &gt; 60 s for &gt; 5 min</td><td>Worker autoscale; non-critical events rerouted to delay queue</td><td>Pause lower-tier producers via kill-switch</td></tr>
+          <tr><td>Model-quality dip</td><td>Offline eval gate fails on nightly re-score</td><td>Automatic rollback to previous model version in the registry</td><td>Root-cause review within 48 h</td></tr>
+          <tr><td>DB primary failure</td><td>RDS multi-AZ health probe</td><td>AZ failover (RTO ≤ 2 min); app connects to new endpoint</td><td>Verify read-replica rebuild; postmortem</td></tr>
+          <tr><td>Region impairment</td><td>Pilot light region health checks</td><td>DNS failover to warm standby (RTO ≤ 30 min)</td><td>Incident commander coordinates cutover</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Disaster recovery &amp; rollback</h3>
+    <div class="grid">
+      <div class="card"><h4><span class="num">A</span>RTO / RPO</h4><p><strong>RTO ≤ 30 min</strong> (cross-region, warm-standby) · <strong>RPO ≤ 5 min</strong> (continuous RDS PITR + S3 cross-region replication).</p></div>
+      <div class="card"><h4><span class="num">B</span>Agent &amp; prompt versioning</h4><p>Agent prompts, tool schemas, and the OWASP guard config are all versioned in-repo. Any of the three can be rolled back independently via a config flag — no redeploy.</p></div>
+      <div class="card"><h4><span class="num">C</span>Model version rollback</h4><p>Pointer swap in the model registry. Previous version always kept warm for 30 days. Rollback is tested quarterly as part of the DR drill.</p></div>
+      <div class="card"><h4><span class="num">D</span>Schema evolution</h4><p>DB migrations use expand-contract with a dual-read period. Breaking API changes require a 90-day deprecation window; <code>/api/v2</code> ships alongside <code>/api/v1</code> until clients cut over.</p></div>
+      <div class="card"><h4><span class="num">E</span>Chaos drills</h4><p>Monthly game-day: kill a worker, choke SQS, inject 5xx on LLM, fail an AZ. Each drill ends with an SLO burn chart and a Fix-it ticket if the recovery procedure drifted.</p></div>
+      <div class="card"><h4><span class="num">F</span>Audit &amp; replay</h4><p>Every decision is replay-safe: the raw feature frame, model version, prompt version and evidence snapshot are persisted together, so any past recommendation can be regenerated byte-for-byte.</p></div>
+    </div>
+  </section>
+
+  <!-- ============ 16 Executive KPI dashboard ============ -->
+  <section id="kpi">
+    <h2><span class="n">16</span>Executive KPI dashboard</h2>
+    <p class="sub">What a CFO or supply-chain VP would see monthly. Each tile makes an explicit distinction between <strong>Simulated</strong> (today's synthetic run), <strong>Target</strong> (what a 90-day pilot would commit to), and <strong>Measured</strong> (populated after real-data pilot — currently blank on purpose).</p>
+
+    <div class="kpi-grid">
+      <div class="kpi">
+        <div class="nm">Lost sales prevented</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">$3.2 M / mo</div></div>
+          <div><div class="lbl">Target</div><div class="vv">$25-38 M / mo</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Stockout rate reduction</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">−14 %</div></div>
+          <div><div class="lbl">Target</div><div class="vv">−20 to −30 %</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Inventory carrying cost ↓</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">−6 %</div></div>
+          <div><div class="lbl">Target</div><div class="vv">−10 to −15 %</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Supplier OTD improvement</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">+4 pp</div></div>
+          <div><div class="lbl">Target</div><div class="vv">+6 to +10 pp</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Recommendation acceptance rate</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">68 %</div></div>
+          <div><div class="lbl">Target</div><div class="vv">≥ 70 %</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Planner productivity (decisions / FTE / day)</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">4 × baseline</div></div>
+          <div><div class="lbl">Target</div><div class="vv">5 × baseline</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Median detection → decision latency</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">6 min</div></div>
+          <div><div class="lbl">Target</div><div class="vv">≤ 10 min</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+      <div class="kpi">
+        <div class="nm">Cost per decision</div>
+        <div class="row">
+          <div><div class="lbl">Simulated</div><div class="vv">$0.019</div></div>
+          <div><div class="lbl">Target</div><div class="vv">≤ $0.025</div></div>
+          <div><div class="lbl">Measured</div><div class="vv">—</div></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="sub" style="margin-top:12px"><strong>Simulated</strong> numbers come from the synthetic dataset run in this repo — they exist to show the dashboard works end-to-end, not to make a business claim. <strong>Target</strong> numbers mirror §03 outcomes with their industry-benchmark provenance. <strong>Measured</strong> stays blank until a real pilot writes back; keeping it visibly empty is the point.</p>
+  </section>
+
+  <!-- ============ 17 AI governance & operating controls ============ -->
+  <section id="governance">
+    <h2><span class="n">17</span>AI governance &amp; operating controls</h2>
+    <p class="sub">The OWASP Top 7 guard in §07 secures the <em>agent runtime</em>. Enterprise AI governance is the broader operating envelope — model lifecycle, data lineage, tenant isolation, drift, incident response — that makes the platform defensible to a CFO, DPO and auditor at the same time.</p>
+
+    <div class="diagram" style="padding: 4px 4px 2px;">
+      <table class="cost-tbl">
+        <thead>
+          <tr><th>Control area</th><th>Controls in place / designed</th><th>Owner</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Model approval &amp; lifecycle</td>
+            <td>Every model version has: training commit · dataset hash · offline-eval scorecard · risk-tier (low / medium / high) · approved-by signature · rollback version. No model reaches prod without a filled card.</td>
+            <td>AI / ML eng + Governance lead</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Data lineage &amp; quality ownership</td>
+            <td>Every feature is tagged with its source table, DQ rules, owner, and PII class. Lineage graph queryable per recommendation. DQ failure blocks the model's retrain window.</td>
+            <td>Data engineering</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Role-based access &amp; tenant isolation</td>
+            <td>RBAC on API (<code>analyst / store_mgr / procurement / director / admin</code>). Multi-tenant deployments: row-level security on Postgres, per-tenant S3 prefix with KMS key, per-tenant SQS.</td>
+            <td>SRE &amp; security</td>
+            <td><span class="badge built">RBAC built</span> · <span class="badge planned">Tenant isolation planned</span></td>
+          </tr>
+          <tr>
+            <td>Auditability &amp; compliance</td>
+            <td>Every recommendation and approval persisted with evidence, approver, timestamp, and OWASP findings. 7-year retention on decisions; replay-safe per §15. SOC 2 Type II scope defined.</td>
+            <td>Security + Legal</td>
+            <td><span class="badge built">Audit log built</span> · <span class="badge planned">Attestation planned</span></td>
+          </tr>
+          <tr>
+            <td>Human override &amp; escalation</td>
+            <td>Approver can reject, request-more-evidence, or override the action type before approving. Overrides are a first-class event: counted, reviewed weekly, feed the evaluation harness (§14).</td>
+            <td>Platform + AI / ML eng</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td>Model drift &amp; data drift</td>
+            <td>PSI / KL monitor on top features; prediction-distribution drift on model outputs; concept-drift signal from approval-rate dips. Alert routes to the owning pod, not to a shared channel.</td>
+            <td>AI / ML eng</td>
+            <td><span class="badge planned">Planned</span></td>
+          </tr>
+          <tr>
+            <td>Incident response &amp; accountability</td>
+            <td>Sev-1 / Sev-2 definitions include "wrong recommendation acted on", not only "service down". Blameless postmortems within 5 business days; action items tracked to closure.</td>
+            <td>SRE + Governance lead</td>
+            <td><span class="badge planned">Runbook planned</span></td>
+          </tr>
+          <tr>
+            <td>Prompt &amp; agent-config change management</td>
+            <td>Prompts, tool scopes and OWASP guard config are code. PRs reviewed by AI / ML eng + Security. Change log carries the "why" and the eval-delta.</td>
+            <td>AI / ML eng + Security</td>
+            <td><span class="badge built">Built</span></td>
+          </tr>
+          <tr>
+            <td>Third-party / supply-chain risk</td>
+            <td>LLM provider pinned to approved list (<code>LLM03</code>); dependencies scanned with Snyk; container images signed; vendor SOC 2 collected.</td>
+            <td>Security</td>
+            <td><span class="badge built">Provider pinning</span> · <span class="badge planned">Scanner CI</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ============ 18 Phased transformation roadmap ============ -->
+  <section id="roadmap">
+    <h2><span class="n">18</span>Phased transformation roadmap</h2>
+    <p class="sub">Prototype → enterprise adoption in five stages. Each phase has a scope, a stage gate, and a measurable success criterion that must be green before the next phase starts. This is the shape of the conversation a CTO wants to have — not a Gantt chart, a value-and-risk curve.</p>
+    <div class="roadmap">
+      <div class="phase">
+        <div class="p">Phase 1 · 0 – 3 mo</div>
+        <h5>Data foundation &amp; visibility</h5>
+        <p>Land source feeds into the warehouse; stand up the feature store; publish lineage; ship the exception dashboard in read-only mode.</p>
+        <ul>
+          <li><strong>Gate</strong> — 95 % DQ pass on top 10 features, lineage queryable end-to-end.</li>
+          <li><strong>Measure</strong> — detection latency ≤ 1 h.</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="p">Phase 2 · 3 – 6 mo</div>
+        <h5>Predictive intelligence</h5>
+        <p>Ship the four predictive models with the evaluation harness (§14). Shadow mode first, then operator-visible scores alongside the raw exception.</p>
+        <ul>
+          <li><strong>Gate</strong> — all four models beat their baseline on the §14 release gate.</li>
+          <li><strong>Measure</strong> — stockout recall ≥ 0.70 on labelled history.</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="p">Phase 3 · 6 – 12 mo</div>
+        <h5>Agent-assisted decisions</h5>
+        <p>Turn on specialist agents with OWASP guard (§07); approval queue goes live; action adapter stays simulated. HITL on every Medium+ recommendation.</p>
+        <ul>
+          <li><strong>Gate</strong> — recommendation acceptance ≥ 60 % on Medium tier.</li>
+          <li><strong>Measure</strong> — stockout rate ↓ 10 % vs baseline in pilot stores.</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="p">Phase 4 · 12 – 18 mo</div>
+        <h5>Governed enterprise integrations</h5>
+        <p>Wire real ERP / WMS / supplier EDI through a hardened adapter. Multi-tenant isolation hardened. SOC 2 Type II in progress.</p>
+        <ul>
+          <li><strong>Gate</strong> — tenant isolation + attestation evidence complete.</li>
+          <li><strong>Measure</strong> — $425 M lower bound of §12 value validated in-flight.</li>
+        </ul>
+      </div>
+      <div class="phase">
+        <div class="p">Phase 5 · 18 – 30 mo</div>
+        <h5>Multi-region scale &amp; continuous optimisation</h5>
+        <p>Active-active across two regions; continuous retraining; outcome-based pricing for SaaS tenants; chaos drills quarterly.</p>
+        <ul>
+          <li><strong>Gate</strong> — DR drill passes within RTO / RPO, two consecutive quarters.</li>
+          <li><strong>Measure</strong> — 99.9 % availability over a rolling 90 days; SaaS logo count on plan.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 19 Three-level presentation ============ -->
+  <section id="levels">
+    <h2><span class="n">19</span>Three ways to read this page</h2>
+    <p class="sub">Different audiences have different budgets of attention. Each level below is a different reading path through the same content — no hidden claims, just a different entry point.</p>
+    <div class="grid">
+      <div class="card">
+        <h4><span class="num">1</span>Executive view · 5 min</h4>
+        <p>For CTOs, VPs, recruiters.</p>
+        <ul>
+          <li><a href="#exec">§00 Executive summary</a></li>
+          <li><a href="#problem">§01 Problem statement</a></li>
+          <li><a href="#impact">§12 Business impact &amp; revenue</a></li>
+          <li><a href="#kpi">§16 Executive KPI dashboard</a></li>
+          <li><a href="#roadmap">§18 Phased transformation roadmap</a></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4><span class="num">2</span>Architecture view · 20 min</h4>
+        <p>For senior engineers and technical interviewers.</p>
+        <ul>
+          <li><a href="#solution">§02 Solution</a> · <a href="#flow">§04 System flow</a> · <a href="#lifecycle">§05 Request lifecycle</a></li>
+          <li><a href="#agents">§06 Agent workflow</a> · <a href="#security">§07 Security · OWASP</a></li>
+          <li><a href="#judgement">§08 Engineering judgement</a> · <a href="#dataflow">§09 Data flow</a></li>
+          <li><a href="#scale">§11 Scale &amp; cost</a></li>
+        </ul>
+      </div>
+      <div class="card">
+        <h4><span class="num">3</span>Implementation view · hands-on</h4>
+        <p>For engineering panels and ops reviewers.</p>
+        <ul>
+          <li><a href="#operating">§13 Engineering leadership operating model</a></li>
+          <li><a href="#eval">§14 AI evaluation &amp; quality framework</a></li>
+          <li><a href="#reliability">§15 Production readiness &amp; reliability</a></li>
+          <li><a href="#governance">§17 AI governance &amp; operating controls</a></li>
+          <li>Live demo, GitHub, test results — in the project README.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="brand" style="margin-bottom:8px"><span class="logo" aria-hidden="true"></span><span>Retail Nexus AI</span></div>
+        <p class="mut" style="max-width:640px;margin:0">
+          Architected and built by <strong>Pradeep Sahoo</strong>. Metrics in the dashboard
+          are computed from the live backend against a reproducible synthetic dataset.
+          Figures without an evaluation pass are labelled <em>illustrative</em>. No
+          production deployment is claimed.
+        </p>
+      </div>
+      <div>
+        <h3>Explore</h3>
+        <p class="mut"><a href="#exec">Executive summary</a></p>
+        <p class="mut"><a href="#problem">Problem</a></p>
+        <p class="mut"><a href="#solution">Solution</a></p>
+        <p class="mut"><a href="#why">Business value</a></p>
+        <p class="mut"><a href="#security">Security · OWASP Top 7</a></p>
+        <p class="mut"><a href="#judgement">Engineering judgement</a></p>
+        <p class="mut"><a href="#scale">Scale &amp; cost</a></p>
+        <p class="mut"><a href="#impact">Business impact &amp; revenue</a></p>
+        <p class="mut"><a href="#operating">Engineering leadership</a></p>
+        <p class="mut"><a href="#eval">AI evaluation</a></p>
+        <p class="mut"><a href="#reliability">Reliability engineering</a></p>
+        <p class="mut"><a href="#kpi">KPI dashboard</a></p>
+        <p class="mut"><a href="#governance">AI governance</a></p>
+        <p class="mut"><a href="#roadmap">Roadmap</a></p>
+        <p class="mut"><a href="#levels">Reading paths</a></p>
+      </div>
+      <div>
+        <h3>Build info</h3>
+        <p class="mut">Author · Pradeep Sahoo</p>
+        <p class="mut">Last updated 2026-11-04</p>
+        <p class="mut">Mock LLM default · swap via <code>LLM_PROVIDER</code></p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
