@@ -1,0 +1,41 @@
+{
+  "title": "Retail Nexus AI — Overview",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "type": "stat",
+      "title": "HTTP requests / min",
+      "targets": [
+        { "expr": "sum(rate(ct_http_requests_total[1m]))" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Agent runs / min",
+      "targets": [
+        { "expr": "sum(rate(ct_agent_runs_total[1m]))" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tool failures / min",
+      "targets": [
+        { "expr": "sum(rate(ct_tool_failures_total[1m])) by (tool)" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Open exceptions by severity",
+      "targets": [
+        { "expr": "ct_exceptions_open" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "API latency p95",
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum(rate(ct_http_request_latency_seconds_bucket[5m])) by (le, path))" }
+      ]
+    }
+  ]
+}
