@@ -87,7 +87,7 @@ def readyz() -> Response:
     from app.core.db import engine
 
     try:
-        with engine.connect() as conn:
+        with engine().connect() as conn:
             conn.execute(text("SELECT 1"))
     except Exception as exc:  # pragma: no cover - probe failure path
         log.warning("readyz_db_unavailable", err=str(exc))

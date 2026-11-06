@@ -1,0 +1,11 @@
+{
+  "synthetic": true,
+  "seed": 42,
+  "generated_at": "2026-11-06",
+  "start_date": "2026-01-01",
+  "days": 365,
+  "n_products": 100,
+  "n_stores": 20,
+  "n_suppliers": 10,
+  "notes": "Synthetic dataset \u2014 not real customer data."
+}
