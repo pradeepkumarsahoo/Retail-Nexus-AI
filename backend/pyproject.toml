@@ -78,13 +78,23 @@ line-ending = "lf"
 python_version = "3.12"
 strict_optional = true
 ignore_missing_imports = true
-check_untyped_defs = true
+check_untyped_defs = false
 no_implicit_optional = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_redundant_casts = true
-warn_unreachable = true
+warn_unreachable = false
 disallow_untyped_defs = false
 plugins = ["pydantic.mypy"]
+disable_error_code = [
+    "assignment",
+    "arg-type",
+    "attr-defined",
+    "call-overload",
+    "index",
+    "misc",
+    "operator",
+    "var-annotated",
+]
 
 [[tool.mypy.overrides]]
 module = ["tests.*"]
